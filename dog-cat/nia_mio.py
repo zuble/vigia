@@ -86,6 +86,11 @@ def train_model(model):
                 callbacks=callbacks)
     return history
 
+def test_model():
+    test_model = keras.models.load_model("convnet_from_scratch.keras")
+    test_loss, test_acc = test_model.evaluate(test_dataset)
+    print(f"Test accuracy wo/ augm: {test_acc:.3f}")
+
 def plt_model(history):
     accuracy = history.history["accuracy"]
     val_accuracy = history.history["val_accuracy"]
@@ -103,11 +108,6 @@ def plt_model(history):
     plt.legend()
     plt.show()
 
-def test_model():
-    test_model = keras.models.load_model("convnet_from_scratch.keras")
-    test_loss, test_acc = test_model.evaluate(test_dataset)
-    print(f"Test accuracy wo/ augm: {test_acc:.3f}")
-
 
 model = form_model()
 #history = train_model(model)
@@ -116,6 +116,9 @@ model = form_model()
 
 
 
+'''
+test image
+'''
 img_path = '/media/jtstudents/HDD/.zuble/vigia/dog-cat/cat.1700.jpg'
 img = tf.keras.utils.load_img(img_path, target_size=(180,180))
 img_tensor = tf.keras.preprocessing.image.img_to_array(img)
@@ -126,16 +129,182 @@ plt.imshow(img_tensor[0])
 
 
 
-layer_outputs = [layer.output for layer in model.layers[:8]]
-activation_model = models.Model(inputs=model.input, outputs=layer_outputs)
 
-activations = activation_model.predict(img_tensor)
+'''
+model(maps the ins to outs)
+    takes an image as input
+    and outputs all layers output values (activations) of original model aka feature maps 
+'''
+#layer_outputs = [layer.output for layer in model.layers[2:11]]
+#activation_model = models.Model(inputs=model.input, outputs=layer_outputs) 
+#activations = activation_model.predict(img_tensor) #one array per layer activation
 
-frist_layer = activations[0]
-print("\nfrist layer",frist_layer.shape)
-plt.matshow(frist_layer[0, :, :, 2], cmap='viridis')
-plt.show()
+'''
+test feature map output of a layer (it's activation)
+'''
+#frist_layer = activations[0]             
+#print("\nactivations len :",len(activations),"\nfrist layer shape : ",frist_layer.shape)
+#plt.matshow(frist_layer[0, :, :, 2], cmap='viridis')
+#plt.show()
 
+'''
+vizualize all layers activations
+'''
+def vizualize_layers_outputs():
+    layer_names = []
+    for layer in model.layers[2:11]:
+        layer_names.append(layer.name)
+    print("layer names\n",layer_names)
+        
+    img_per_row = 16
+
+    for layer_names, layer_activation in zip(layer_names, activations):
+        n_features = layer_activation.shape[-1]
+        size = layer_activation.shape[1] #featuremap.shape(I,size,seize,n_features)
+        n_cols = n_features // img_per_row
+        
+        display_grid = np.zeros((size*n_cols, img_per_row*size))
+        
+        for col in range(n_cols):
+            for row in range(img_per_row):
+                channel_image = layer_activation[0, :, :, col * img_per_row + row]
+                channel_image -= channel_image.mean()
+                if(channel_image.std()==0):
+                    channel_image /= channel_image.std() + 1e-06
+                channel_image *= 64
+                channel_image += 128
+                channel_image = np.clip(channel_image, 0, 255).astype('uint8')
+                display_grid[col * size : (col+1) * size, 
+                             row * size : (row+1) * size] = channel_image   
+
+        sclae = 1. / size
+        plt.figure(figsize = (sclae * display_grid.shape[1],
+                            sclae * display_grid.shape[0]))
+        plt.title(layer_names)
+        plt.grid(False)
+        plt.imshow(display_grid, aspect='auto', cmap='viridis')
+    
+    plt.show()    
+    
+#vizualize_layers_outputs()
+
+
+
+'''
+vizualize the visual pattern that each filter is meant to respond
+by aplying gradient descent to the input image in order to maximize the filter response, 
+starting from a blank image
+
+each layer in a convolution network learns a collection of filters
+such that their inputs can be expressed as a combination of filters
+'''
+
+def layers_w_conv():
+    layers_conv = []
+    for layer in model.layers:
+        if isinstance(layer, (keras.layers.Conv2D)):
+            layers_conv.append(layer.name)
+    print("\nconv layers :",layers_conv)
+    return layers_conv
+
+layer_index = 4
+
+layers_conv = layers_w_conv()
+layer = model.get_layer(name=layers_conv[layer_index])
+print("\nlayers_conv[",layer_index,"]",layers_conv[layer_index],layer.output_shape)
+
+feature_extractor = keras.Model(inputs=model.input, outputs=layer.output)
+    
+
+def compute_loss(image, filter_index):
+    activation = feature_extractor(image)
+    filter_activation = activation[:, 2:-2, 2:-2, filter_index]
+    return tf.reduce_mean(filter_activation)
+
+
+'''
+Loss maximization via stochastic gradient ascent
+'''
+@tf.function
+def gradient_ascent_step(image, filter_index, learning_rate):
+    with tf.GradientTape() as tape:
+        tape.watch(image)
+        loss = compute_loss(image, filter_index)
+    grads = tape.gradient(loss, image)
+    grads = tf.math.l2_normalize(grads)
+    image += learning_rate * grads
+    return image
+
+img_width = 180
+img_height = 180
+
+
+'''
+Function to generate filter visualizations
+'''
+def generate_filter_pattern(filter_index):
+    iterations = 30
+    learning_rate = 10.
+    image = tf.random.uniform(
+        minval=0.4,
+        maxval=0.6,
+        shape=(1, img_width, img_height, 3))
+    for i in range(iterations):
+        image = gradient_ascent_step(image, filter_index, learning_rate)
+    return image[0].numpy()
+
+
+'''
+Utility function to convert a tensor into a valid image
+'''
+def deprocess_image(image):
+    image -= image.mean()
+    image /= image.std()
+    image *= 64
+    image += 128
+    image = np.clip(image, 0, 255).astype("uint8")
+    image = image[25:-25, 25:-25, :]
+    return image
+
+plt.axis("off")
+plt.imshow(deprocess_image(generate_filter_pattern(filter_index=2)))
+
+
+all_images = []
+n_filters_layer = layer.output_shape[3]
+
+for filter_index in range(n_filters_layer):
+    print(f"Processing filter {filter_index}")
+    image = deprocess_image(
+        generate_filter_pattern(filter_index)
+    )
+    all_images.append(image)
+    keras.utils.save_img(f"layer_filter_responses/filters_for_layer_{layers_conv[layer_index]}_{filter_index}.png", image)
+
+'''
+"""
+save all filter responses in one img
+"""
+margin = 5
+n = 8
+cropped_width = img_width - 25 * 2
+cropped_height = img_height - 25 * 2
+width = n * cropped_width + (n - 1) * margin
+height = n * cropped_height + (n - 1) * margin
+stitched_filters = np.zeros((width, height, 3))
+print(cropped_width,cropped_height,width,height)
+for i in range(n):
+    for j in range(n):
+        image = all_images[i * n + j]
+        stitched_filters[
+            (cropped_width + margin) * i : (cropped_width + margin) * i + cropped_width,
+            (cropped_height + margin) * j : (cropped_height + margin) * j
+            + cropped_height,
+            :,
+        ] = image
+
+keras.utils.save_img(f"filters_for_layer_{layers_conv[0]}.png", stitched_filters)
+'''
 
 
 '''

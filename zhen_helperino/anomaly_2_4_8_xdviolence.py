@@ -17,56 +17,6 @@ import random
 
 #frame_no = 8
 
-def all_operations(args):
-    x = args[0]
-    #tf.print(x.shape)
-    x = tf.reshape(x, [1, -1,x.shape[1]*x.shape[2]*x.shape[3]])
-    return x
-@tf.function
-def loss_category(y_true, y_pred):    
-    #tf.print(y_pred, y_true, 'Prediction')
-    cce = tf.keras.losses.categorical_crossentropy(y_true, y_pred)
-    return cce
-
-
-def form_model():
-    print("\nFORM_MODEL")
-    image_input = keras.Input(shape=(None, target_height, target_width, 3))
-    #Freeze the batch normalization
-    
-    c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation='relu')(image_input)
-    c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
-    c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation='relu')(c3d_pooling1)
-    c3d_pooling2 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer2)
-    c3d_layer3 = keras.layers.Conv3D(16,(8,3,3), activation='relu')(c3d_pooling2)
-    c3d_pooling3 = keras.layers.MaxPooling3D((4,2,2))(c3d_layer3)
-    #c3d_layer4 = keras.layers.Conv3D(32,(2,3,3), activation='relu')(c3d_pooling3)
-    #c3d_pooling4 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer4)
-    
-    feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3)
-    
-    lstm1 = keras.layers.LSTM(1024,input_shape=(1200,feature_conv_4.shape[2]), return_sequences=True)(feature_conv_4)
-    lstm2 = keras.layers.LSTM(512, return_sequences=True)(lstm1)
-    global_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
-    
-    dense_1 = keras.layers.Dense(128, activation='relu')(global_feature)
-    #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
-    
-    soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
-    
-    
-    model = models.Model(inputs=[image_input], outputs=[soft_max])
-    model.summary()
-    
-    
-    #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
-    optimizer_adam = keras.optimizers.SGD(learning_rate = 0.0002)
-    model.compile(optimizer=optimizer_adam, 
-                    loss= 'binary_crossentropy', 
-                    #loss_weights = class_weights,
-                    metrics=['accuracy'])
-    return model
-
 
 def input_video_data(file_name):
     print("\n\nINPUT_VIDEO_DATA\n")
@@ -145,15 +95,12 @@ def input_video_data(file_name):
         
     return np.expand_dims(batch_frames,0), np.expand_dims(batch_frames_flip, 0), total_frame
     
-
-
     '''
     cv2.imshow('show', image)
     keyInput = cv2.waitKey(1)
     if keyInput == 27:
         break
     '''
-
 
 #cv2.destroyWindow('show')
 #from keras.utils import to_categorical
@@ -223,7 +170,6 @@ def generate_input():
     
     print("loop_no=",loop_no)
 
-
 def input_test_video_data(file_name, batch_no=0):
     #file_name = 'C:\\Bosch\\Anomaly\\training\\videos\\13_007.avi'
     #file_name = '/raid/DATASETS/anomaly/UCF_Crimes/Videos/Training_Normal_Videos_Anomaly/Normal_Videos308_x264.mp4'
@@ -280,6 +226,56 @@ def input_test_video_data(file_name, batch_no=0):
         
     return np.expand_dims(batch_frames,0), divid_no, total_frame
 
+
+def all_operations(args):
+    x = args[0]
+    #tf.print(x.shape)
+    x = tf.reshape(x, [1, -1,x.shape[1]*x.shape[2]*x.shape[3]])
+    return x
+@tf.function
+def loss_category(y_true, y_pred):    
+    #tf.print(y_pred, y_true, 'Prediction')
+    cce = tf.keras.losses.categorical_crossentropy(y_true, y_pred)
+    return cce
+
+
+def form_model():
+    print("\nFORM_MODEL")
+    image_input = keras.Input(shape=(None, target_height, target_width, 3))
+    #Freeze the batch normalization
+    
+    c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation='relu')(image_input)
+    c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
+    c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation='relu')(c3d_pooling1)
+    c3d_pooling2 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer2)
+    c3d_layer3 = keras.layers.Conv3D(16,(8,3,3), activation='relu')(c3d_pooling2)
+    c3d_pooling3 = keras.layers.MaxPooling3D((4,2,2))(c3d_layer3)
+    #c3d_layer4 = keras.layers.Conv3D(32,(2,3,3), activation='relu')(c3d_pooling3)
+    #c3d_pooling4 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer4)
+    
+    feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3)
+    
+    lstm1 = keras.layers.LSTM(1024,input_shape=(1200,feature_conv_4.shape[2]), return_sequences=True)(feature_conv_4)
+    lstm2 = keras.layers.LSTM(512, return_sequences=True)(lstm1)
+    global_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
+    
+    dense_1 = keras.layers.Dense(128, activation='relu')(global_feature)
+    #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
+    
+    soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
+    
+    
+    model = models.Model(inputs=[image_input], outputs=[soft_max])
+    model.summary()
+    
+    
+    #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
+    optimizer_adam = keras.optimizers.SGD(learning_rate = 0.0002)
+    model.compile(optimizer=optimizer_adam, 
+                    loss= 'binary_crossentropy', 
+                    #loss_weights = class_weights,
+                    metrics=['accuracy'])
+    return model
 
 def crime_test(model):
     #f = open('/home/zhen/anomaly/test/'+ para_file_name + '.txt', 'w')
@@ -347,12 +343,11 @@ for i in range(len(test_fn)):
         test_fn_dict[test_fn[i][test_fn[i].find('/')+1:]] = 1
 '''
 
+
+"""
+GENERATE LIST of TEST FILES
+"""
 def test_files():
-
-    """
-    GENERATE LIST of TEST FILES
-    """
-
     test_fn, test_normal_fn, test_abnormal_fn = [],[],[]
     #server_testname_folder = '/raid/DATASETS/anomaly/XD_Violence/testing'
     server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
@@ -368,12 +363,10 @@ def test_files():
 
     return test_fn
 
+"""
+GENERATING LIST of TRAIN FILES
+"""
 def train_files():
-    
-    """
-    GENERATING LIST of TRAIN FILES
-    """
-    
     train_fn = []
     #server_video_loc = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
     #server_video_loc = '/raid/DATASETS/anomaly/XD_Violence/training/'
@@ -385,18 +378,14 @@ def train_files():
     print("\ntrain_fn=",np.shape(train_fn))
     return train_fn
 
-
+'''
+MODEL TRAIN/VALIDATION 
+(silent mode - verbose = 0)
+'''
+from tqdm.keras import TqdmCallback
+import pandas as pd
 def model_train():
-
-    '''
-    MODEL TRAIN/VALIDATION 
-    (silent mode - verbose = 0)
-    '''
     
-    from tqdm.keras import TqdmCallback
-    import pandas as pd
-
-
     model = form_model()
     physical_devices = tf.config.list_physical_devices('GPU')
     print("\nAvaiable GPU's",physical_devices)
@@ -409,7 +398,6 @@ def model_train():
     #model.load_weights(para_file_name)
 
     print("\n\nMODEL.FIT")
-    #history = model.fit_generator(generate_input(), steps_per_epoch=len(train_fn)*2,epochs=30, verbose=1, callbacks=[checkpoint, TqdmCallback(verbose=2)]) 
     history = model.fit(generate_input(), 
                         steps_per_epoch=len(train_fn)*2, 
                         epochs=30, 

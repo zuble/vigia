@@ -198,15 +198,16 @@ def input_test_video_data(file_name, batch_no=0):
             divid_no = int(total_frame / frame_max) + 1
 
     passby = 0
-    #updates the start frame according to the 4000 * batch_no atual
+    #updates the start frame to 0,4000,8000... excluding the last batch
     if batch_no != divid_no - 1:
         while video.isOpened and passby < frame_max * batch_no:
             passby += 1
             success, image = video.read()
             if success == False:
                 break
+    #updates the last batch starting frame 
     else:
-        while video.isOpened and passby < total_frame - frame_max:
+        while video.isOpened and passby < frame_max * batch_no:#total_frame - frame_max:
             passby += 1
             success, image = video.read()
             if success == False:
@@ -370,8 +371,8 @@ def train_model():
 
 def test_model(model):
     print("\nTEST MODEL\n")
-    #f = open('/home/zhen/anomaly/test/'+ para_file_name + '.txt', 'w')
-    f = open('/media/jtstudents/HDD/.zuble/vigia/zhen_helperino/' + model_weight_fn + '.txt', 'w')
+    #f = open('/media/jtstudents/HDD/.zuble/vigia/zhen_helperino/' + model_weight_fn + '.txt', 'w') #lastbatch with 4000
+    #f = open('/media/jtstudents/HDD/.zuble/vigia/zhen_helperino/' + model_weight_fn + '_.txt', 'w') #lastbatch with the right frame numba
     content_str = ''
     total_frames_test = 0
     predict_total= [] 
@@ -431,11 +432,12 @@ def test_model(model):
     end_test = time.time()
     time_test = end_test - start_test
 
-    f.write(content_str)
-    f.close()
+    #f.write(content_str)
+    #f.close()
     print("\nDONE\n\ttotal of",str(total_frames_test),"frames processed in",time_test," seconds",
             "\n\t"+str(total_frames_test / time_test),"frames per second",
             "\n\n",print(predict_total))                  
+
 
 '''
     GPU CONFIGURATION

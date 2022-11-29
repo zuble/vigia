@@ -49,7 +49,7 @@ def form_model():
     dense_1 = keras.layers.Dense(128, activation='relu')(global_feature)
     #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
     soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
-   
+
     model = models.Model(inputs=[image_input], outputs=[soft_max])
     
     model.summary()
@@ -57,9 +57,9 @@ def form_model():
     
     optimizer_adam = keras.optimizers.SGD(learning_rate = 0.0002)
     model.compile(optimizer=optimizer_adam, 
-                  loss= 'binary_crossentropy', 
-                  #loss_weights = class_weights,
-                  metrics=['accuracy'])
+                loss= 'binary_crossentropy', 
+                #loss_weights = class_weights,
+                metrics=['accuracy'])
     return model
 
 def input_video_data(file_name):
@@ -247,7 +247,7 @@ def input_test_video_data(file_name, batch_no=0):
             success, image = video.read()
             if success == False:
                 break
-                  
+                
     batch_frames = []
     
     counter = 0
@@ -277,8 +277,8 @@ def input_test_video_data(file_name, batch_no=0):
 
 def crime_test():
     class_name = ['Abuse','Arrest','Arson','Assault','Burglary',
-                  'Explosion','Fighting','RoadAccidents','Robbery','Shooting',
-                  'Shoplifting','Stealing','Normal','Vandalism']
+                'Explosion','Fighting','RoadAccidents','Robbery','Shooting',
+                'Shoplifting','Stealing','Normal','Vandalism']
     test_root = server_video_loc
     f = open('/home/zhen/anomaly/test/'+ para_file_name + '_ucf.txt', 'w')
     content_str = ''
@@ -310,7 +310,7 @@ def crime_test():
             content_str += test_name[i] + '\t' + str(predict_result)  + '\n'
     
     end_time = time.time()
-               
+            
     f.write(content_str)
     f.close()
     print(str(total_frames_test / (end_time - start_time)) + 'done...........')                  
@@ -332,11 +332,11 @@ train_filenames = []
 #server_video_loc = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
 server_video_loc = '/raid/DATASETS/anomaly/UCF_Crimes/Videos/'
 for root, dirs, files in os.walk(server_video_loc):
-     for file in files:
-         total_video_no += 1
-         if file not in test_name_dict and file.find('.mp4') != -1:
-             train_filenames.append(os.path.join(root, file))
-             
+    for file in files:
+        total_video_no += 1
+        if file not in test_name_dict and file.find('.mp4') != -1:
+            train_filenames.append(os.path.join(root, file))
+            
 print(len(train_filenames), total_video_no, len(test_name_dict))
 
 target_height = 120
@@ -361,7 +361,7 @@ while 1:
 '''        
 sequences_file = open('seq.txt', 'w')
 for se in update_index:
-     sequences_file.write(str(se)+'\n')
+    sequences_file.write(str(se)+'\n')
 sequences_file.close()
 '''
 read_file = open('seq.txt','r')

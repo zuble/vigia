@@ -15,6 +15,14 @@ import os, time, random, logging
 from tqdm.keras import TqdmCallback
 import pandas as pd
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
+
+
+base_vigia_dir = "/media/jtstudents/HDD/.zuble/vigia"
+
+
 def set_tf_loglevel(level):
     if level >= logging.FATAL:
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -207,11 +215,20 @@ def input_test_video_data(file_name, batch_no=0):
                 break
     #updates the last batch starting frame 
     else:
-        while video.isOpened and passby < frame_max * batch_no:#total_frame - frame_max:
-            passby += 1
-            success, image = video.read()
-            if success == False:
-                break
+        if batch_type==2:
+            #print("2")
+            while video.isOpened and passby < frame_max * batch_no:
+                passby += 1
+                success, image = video.read()
+                if success == False:
+                    break
+        if batch_type==1:
+            #print("1")
+            while video.isOpened and passby < total_frame - frame_max:
+                passby += 1
+                success, image = video.read()
+                if success == False:
+                    break
             
     batch_frames = []
     counter = 0
@@ -243,6 +260,7 @@ def test_files():
     GENERATE LIST of TEST FILES
     """
     test_fn, test_normal_fn, test_abnormal_fn = [],[],[]
+    y_test_labels, y_test_norm, y_test_abnor = [],[],[]
     #server_testname_folder = '/raid/DATASETS/anomaly/XD_Violence/testing'
     server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
     for root, dirs, files in os.walk(server_testname_folder):
@@ -250,12 +268,18 @@ def test_files():
             if file.find('.mp4') != -1:
                 if 'label_A' in file:
                     test_normal_fn.append(os.path.join(root, file))
+                    y_test_norm.append(0)
                 else:
                     test_abnormal_fn.append(os.path.join(root, file))
+                    y_test_abnor.append(1)
+                    
     test_fn = test_normal_fn + test_abnormal_fn
+    y_test_labels = y_test_norm + y_test_abnor
+    
     print("\ntest_fn",np.shape(test_fn),"\ntest_normal_fn",np.shape(test_normal_fn),"\ntest_abnormal_fn",np.shape(test_abnormal_fn))
-
-    return test_fn
+    print("\ny_test_labels",np.shape(y_test_labels),"\ny_test_norm",np.shape(y_test_norm),"\ny_test_abnor",np.shape(y_test_abnor))
+    
+    return test_fn, y_test_labels
 
 def train_files():
     """
@@ -269,7 +293,9 @@ def train_files():
         for file in files:
             if file.find('.mp4') != -1:
                 train_fn.append(os.path.join(root, file))
+                
     print("\ntrain_fn=",np.shape(train_fn))
+    
     return train_fn
 
 
@@ -288,7 +314,7 @@ def loss_category(y_true, y_pred):
 def find_weights(): 
     weights_fn = []
     weights_path = []
-    weights_base_path = "/media/jtstudents/HDD/.zuble/vigia/zhen_helperino/parameters_saved"
+    weights_base_path = base_vigia_dir+"/zhen++/parameters_saved"
 
     for file in os.listdir(weights_base_path):
         fname, fext = os.path.splitext(file)
@@ -333,10 +359,24 @@ def form_model():
     
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
     optimizer_adam = keras.optimizers.SGD(learning_rate = 0.0002)
+    METRICS = [
+        keras.metrics.TruePositives(name='tp'),
+        keras.metrics.FalsePositives(name='fp'),
+        keras.metrics.TrueNegatives(name='tn'),
+        keras.metrics.FalseNegatives(name='fn'), 
+        keras.metrics.BinaryAccuracy(name='accuracy'),
+        keras.metrics.Precision(name='precision'),
+        keras.metrics.Recall(name='recall'),
+        keras.metrics.AUC(name='auc'),
+        keras.metrics.AUC(name='prc', curve='PR'), # precision-recall curve
+    ]
+
+    
     model.compile(optimizer=optimizer_adam, 
                     loss= 'binary_crossentropy', 
                     #loss_weights = class_weights,
-                    metrics=['accuracy'])
+                    #metrics=['accuracy']
+                    metrics=METRICS)
     return model
 
 def train_model():
@@ -346,7 +386,7 @@ def train_model():
     '''
 
     #https://keras.io/api/callbacks/model_checkpoint/
-    ckpt_path = '/media/jtstudents/HDD/.zuble/zhen_helperino/'+time_str+'_2_4_8_xdviolence_anomaly_{epoch:08d}.h5'
+    ckpt_path = base_vigia_dir+'/zhen_++/'+time_str+'_2_4_8_xdviolence_anomaly_{epoch:08d}.h5'
     checkpoint = keras.callbacks.ModelCheckpoint(ckpt_path, save_freq='epoch')
 
     #para_file_name = '.262731_2_4_8_xdviolence_anomaly_00000010.h5'
@@ -371,8 +411,7 @@ def train_model():
 
 def test_model(model):
     print("\nTEST MODEL\n")
-    #f = open('/media/jtstudents/HDD/.zuble/vigia/zhen_helperino/' + model_weight_fn + '.txt', 'w') #lastbatch with 4000
-    #f = open('/media/jtstudents/HDD/.zuble/vigia/zhen_helperino/' + model_weight_fn + '_.txt', 'w') #lastbatch with the right frame numba
+    f = open(base_vigia_dir+'/zhen++/parameters_results/'+model_weight_fn+'_'+str(batch_type)+'.txt', 'w')
     content_str = ''
     total_frames_test = 0
     predict_total= [] 
@@ -415,7 +454,6 @@ def test_model(model):
                 
             predict_total.append(predict_result)
             
-            
             if 'label_A' in test_fn[i]:
                 print('\nNORM',str(i),':',f'{total_frames:.0f}',"@",f'{fps:.0f}',"fps =",f'{video_time:.2f}',"sec\n\t",
                         test_fn[i][test_fn[i].rindex('/')+1:],
@@ -432,11 +470,29 @@ def test_model(model):
     end_test = time.time()
     time_test = end_test - start_test
 
-    #f.write(content_str)
-    #f.close()
+    f.write(content_str)
+    f.close()
     print("\nDONE\n\ttotal of",str(total_frames_test),"frames processed in",time_test," seconds",
             "\n\t"+str(total_frames_test / time_test),"frames per second",
-            "\n\n",print(predict_total))                  
+            "\n\n********************************************************",
+            "\n\n********************************************************")                  
+
+    return predict_total
+
+
+def plot_cm(y_test_pred,p=0.5):
+    '''
+    https://www.tensorflow.org/tutorials/structured_data/imbalanced_data#download_the_kaggle_credit_card_fraud_data_set
+    '''
+    y_test_pred_array = np.array(y_test_pred)
+    cm = confusion_matrix(y_test_labels, y_test_pred_array > p)
+    plt.figure(figsize=(5,5))
+    sns.heatmap(cm, annot=True, fmt="d")
+    plt.title('Confusion matrix @{:.2f}'.format(p))
+    plt.ylabel('Actual label')
+    plt.xlabel('Predicted label')
+    plt.savefig(base_vigia_dir+'/zhen++/parameters_results/'+model_weight_fn+'_CM'+str(batch_type)+'.png')              
+
 
 
 '''
@@ -469,12 +525,11 @@ gpus = tf.config.list_physical_devices('GPU')
 
 
 
-
 target_height = 120
 target_width = 160
 frame_max = 4000
 
-test_fn = test_files()
+test_fn, y_test_labels = test_files()
 train_fn = train_files()
 
 update_index = range(0, len(train_fn))
@@ -486,15 +541,21 @@ print("\ntime_str=",time_str,"\n")
 #model = train_model()
 #test_model(model) 
 
-
 model = form_model()
 weights_fn, weights_path = find_weights()
 
+
+# =1 last batch has 4000 frames // =2 last batch has no repetead frames
+batch_type = 2
+print("\n\n\t\tBATCH TYPE",batch_type)
+    
 for i in range(len(weights_fn)):
     print("\n\nLoading weights from",weights_fn[i],"\n")
     model.load_weights(weights_path[i])
     model_weight_fn,model_weight_ext = os.path.splitext(str(weights_fn[i]))
-    test_model(model)
+    
+    y_test_pred = test_model(model)
+    plot_cm(y_test_pred)
 
 
 '''

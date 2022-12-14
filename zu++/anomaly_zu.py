@@ -976,21 +976,23 @@ def test_zhen_h5():
 # %%
 """ GELU """
 #https://keras.io/guides/distributed_training/
-
-strategy = tf.distribute.MirroredStrategy()
-print("Number of devices: {}".format(strategy.num_replicas_in_sync))
-
-'''Everything that creates variables should be under the strategy scope.
-In general this is only model construction & `compile()` '''
+#strategy = tf.distribute.MirroredStrategy()
+#print("Number of devices: {}".format(strategy.num_replicas_in_sync))
+'''Everything that creates variables should be under the strategy scope.In general this is only model construction & `compile()` '''
 #with strategy.scope():
 #    model_gelu = form_model(ativa = 'gelu')
-model_gelu = form_model(ativa = 'gelu')
+#model_gelu = train_model(model_gelu,'_3gelu_xdviolence')
 
-model_gelu = train_model(model_gelu,'_3gelu_xdviolence')
 
-model_gelu = tf.keras.models.load_model(model_path)
+#model_gelu = form_model(ativa = 'gelu')
+#model_gelu = train_model(model_gelu,'_3gelu_xdviolence')
 
-test_model(model=model_gelu,test_files=test_fn,rslt_path=rslt_path_zu)
+
+weights_fn, weights_path = find_weights('_3gelu_xdviolence')
+print(weights_fn,weights_path)
+#model_gelu = tf.keras.models.load_model(model_path)
+
+#test_model(model=model_gelu,test_files=test_fn,rslt_path=rslt_path_zu)
 
 # %%
 

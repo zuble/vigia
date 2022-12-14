@@ -2,15 +2,17 @@
 import os, time, random, logging
 import cv2
 import numpy as np
-import mtcnn
+#import mtcnn
 
 import pandas as pd
 import tensorflow as tf
+print(tf.version.VERSION)
 
 import keras
 from keras import models, layers, backend as K
 from keras.layers import Activation
 from keras.callbacks import ModelCheckpoint
+#from keras.utils import get_custom_objects
 from keras.utils.generic_utils import get_custom_objects
 from tqdm.keras import TqdmCallback
 
@@ -22,6 +24,7 @@ from sklearn.metrics import confusion_matrix
 
 # %%
 """ PATH VAR """
+
 base_vigia_dir = "/media/jtstudents/HDD/.zuble/vigia"
 server_trainame_folder = '/media/jtstudents/HDD/.zuble/xdviol/train'
 server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
@@ -37,9 +40,8 @@ hist_path = base_vigia_dir+'/zu++/model/hist/'
 rslt_path_zu = base_vigia_dir+'/zu++/model/rslt/'
 rslt_path_zhen = base_vigia_dir+'/zhen++/parameters_results'
 
-weights_path = base_vigia_dir+'/zu++/model/weights/'
-weights_base_path = base_vigia_dir+"/zhen++/parameters_saved"
-
+weights_path_zu = base_vigia_dir+'/zu++/model/weights/'
+weights_path_zhen = base_vigia_dir+"/zhen++/parameters_saved"
 
 # %%
 """ TEST/TRAIN FILES """
@@ -57,10 +59,10 @@ def test_files(onev = 0):
                 if file.find('.mp4') != -1:
                     if 'label_A' not in file:
                         test_normal_fn.append(os.path.join(root, file))
-                        y_test_norm.append(0)
+                        y_test_norm.append(1)
                     else:
                         test_abnormal_fn.append(os.path.join(root, file))
-                        y_test_abnor.append(1)
+                        y_test_abnor.append(0)
                         
         test_fn = test_normal_fn + test_abnormal_fn
         y_test_labels = y_test_norm + y_test_abnor
@@ -575,23 +577,23 @@ def loss_category(y_true, y_pred):
 
 def gelu(x):
     return 0.5*x*(1+tf.tanh(np.sqrt(2/np.pi)*(x+0.044715*tf.pow(x, 3))))
-get_custom_objects().update({'gelu': Activation(gelu)})
+get_custom_objects().update({'gelu': gelu})
 
-def find_weights(find_string): 
+def find_weights(path,find_string): 
     weights_fn = []
     weights_path = []
 
-    for file in os.listdir(weights_base_path):
+    for file in os.listdir(path):
         fname, fext = os.path.splitext(file)
         if fext == ".h5" and file.find(find_string) != -1 :
             print(file)
-            weights_path.append(os.path.join(weights_base_path, file))
+            weights_path.append(os.path.join(path, file))
             weights_fn.append(file)
 
     return weights_fn, weights_path
 
 
-def form_model(ativa):
+def form_model(ativa,optima):
     print("\nFORM_MODEL\n")
     image_input = keras.Input(shape=(None, target_height, target_width, 3))
     #Freeze the batch normalization
@@ -605,27 +607,26 @@ def form_model(ativa):
     #c3d_layer4 = keras.layers.Conv3D(32,(2,3,3), activation=activa)(c3d_pooling3)
     #c3d_pooling4 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer4)
     
-    feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3)
+    feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3) #flatten spatial features to time series
     
     lstm1 = keras.layers.LSTM(1024,input_shape=(1200,feature_conv_4.shape[2]), return_sequences=True)(feature_conv_4)
-    lstm2 = keras.layers.LSTM(512, return_sequences=True)(lstm1)
+    #lstm2 = keras.layers.LSTM(512, return_sequences=True)(lstm1)
     global_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
     
     #ADD THE AUDIO FEATURE HERE 
     
     dense_1 = keras.layers.Dense(128, activation=ativa)(global_feature)
+    
     #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
-    
-    
     soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
-    
     
     model = models.Model(inputs=[image_input], outputs=[soft_max])
     model.summary()
     
-    
+
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
-    optimizer_adam = keras.optimizers.SGD(learning_rate = 0.0002)
+    sgd = keras.optimizers.SGD(learning_rate = 0.0002)
+    adam = keras.optimizers.Adam(learning_rate = 0.0002)
     METRICS = [
         keras.metrics.TruePositives(name='tp'),
         keras.metrics.FalsePositives(name='fp'),
@@ -638,8 +639,7 @@ def form_model(ativa):
         keras.metrics.AUC(name='prc', curve='PR'), # precision-recall curve
     ]
 
-    
-    model.compile(optimizer=optimizer_adam, 
+    model.compile(optimizer=optima, 
                     loss= 'binary_crossentropy', 
                     #loss_weights = class_weights,
                     #metrics=['accuracy']
@@ -647,14 +647,16 @@ def form_model(ativa):
     return model
 
 
-def train_model(model,model_name):
+def train_model(model,model_name,weights_path):
     '''
     MODEL TRAIN/VALIDATION 
     (silent mode - verbose = 0)
     '''
-
+    
+    if not os.path.exists(ckpt_path+'/'+time_str+model_name):
+        os.makedirs(ckpt_path+'/'+time_str+model_name)
     #https://keras.io/api/callbacks/model_checkpoint/
-    checkpoint = keras.callbacks.ModelCheckpoint(file_path=ckpt_path+time_str+model_name+'_ckpt-{epoch:08d}.h5')
+    checkpoint = ModelCheckpoint(filepath=ckpt_path+'/'+time_str+model_name+'/ckpt-{epoch:08d}.h5')
 
     #para_file_name = '.262731_2_4_8_xdviolence_anomaly_00000010.h5'
     #model.load_weights(para_file_name)
@@ -677,7 +679,7 @@ def train_model(model,model_name):
     return model
 
 
-def test_model(model, test_files, rslt_path, model_weight_fn=''):
+def test_model(model, files, rslt_path, model_weight_fn=''):
     print("\nTEST MODEL\n")
     txt_fn = rslt_path+model_weight_fn+'_'+str(batch_type)+'.txt'
     f = open(txt_fn, 'w')
@@ -689,9 +691,9 @@ def test_model(model, test_files, rslt_path, model_weight_fn=''):
     predict_total_max = [] #to perform the metrics
     
     start_test = time.time()
-    for i in range(len(test_files)):
-        if test_files[i] != '':
-            file_path = test_files[i]
+    for i in range(len(files)):
+        if files[i] != '':
+            file_path = files[i]
             predict_result = () #to save predictions per file
             
             #the frist 4000 frames from actual test video                
@@ -737,18 +739,18 @@ def test_model(model, test_files, rslt_path, model_weight_fn=''):
             predict_total_max.append(predict_max)
             print(predict_total[i])
             
-            if 'label_A' in test_files[i]:
+            if 'label_A' in files[i]:
                 print('\nNORM',str(i),':',f'{total_frames:.0f}',"@",f'{fps:.0f}',"fps =",f'{video_time:.2f}',"sec\n\t",
-                        test_files[i][test_files[i].rindex('/')+1:],
+                        files[i][files[i].rindex('/')+1:],
                         "\n\t "+str(predict_max),"% @batch",high_score_patch,"in",str(time_predict),"seconds\n",
                         "----------------------------------------------------\n")
             else:
                 print('\nABNORM',str(i),':',f'{total_frames:.0f}',"@",f'{fps:.0f}',"fps =",f'{video_time:.2f}',"sec\n\t",
-                        test_files[i][test_files[i].rindex('/')+1:],
+                        files[i][files[i].rindex('/')+1:],
                         "\n\t"+str(predict_max),"% @batch",high_score_patch,"in",str(time_predict),"seconds\n",
                         "----------------------------------------------------\n")
                 
-            content_str += test_files[i][test_files[i].rindex('/')+1:] + '|' + str(predict_total_max[i]) + '|' + str(predict_total[i])  + '\n'
+            content_str += files[i][files[i].rindex('/')+1:] + '|' + str(predict_total_max[i]) + '|' + str(predict_total[i])  + '\n'
             
     end_test = time.time()
     time_test = end_test - start_test
@@ -828,6 +830,10 @@ def get_precision_recall_f1(labels, predictions):
     r_res = r.result().numpy()
     print("\tRECALL (%% of True Positive out of all actual anomalies) ",r_res)
     
+    #https://glassboxmedicine.com/2019/03/02/measuring-performance-auprc/
+    auprc_ap = sklearn.metrics.average_precision_score(labels, predictions)
+    print("\tAP ( AreaUnderPrecisionRecallCurve )",auprc_ap)
+    
     #https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
     #import tensorflow_addons as tfa
     #f1 = tfa.metrics.F1Score(num_classes=2, threshold=0.5)
@@ -835,7 +841,7 @@ def get_precision_recall_f1(labels, predictions):
     f1_res = 2*((p_res*r_res)/(p_res+r_res+K.epsilon()))
     print("\tF1_SCORE (harmonic mean of precision and recall) ",f1_res)
     
-    return p_res,r_res,f1_res
+    return p_res,r_res,auprc_ap,f1_res
 
 
 # %%
@@ -887,16 +893,14 @@ def buf_count_newlines_gen(fname):
         count = sum(buf.count(b"\n") for buf in _make_gen(f.raw.read))
     return count
 
-def get_results_from_txt():
-    
-    path = rslt_path_zhen + '/1V/'
+def get_results_from_txt(rslt_path):
     res_txt_fn = []
     res_model_fn = []
     
-    for file in os.listdir(path):
+    for file in os.listdir(rslt_path):
         fname, fext = os.path.splitext(file)
         if fext == ".txt" and file.find('xdviolence') != -1:
-            res_txt_fn.append(os.path.join(path, file))
+            res_txt_fn.append(os.path.join(rslt_path, file))
             res_model_fn.append(fname)
     
     res_txt_fn = sorted(res_txt_fn)
@@ -946,8 +950,8 @@ def get_results_from_txt():
     return res_list_full, res_list_max, res_list_fn, res_list_labels
 
 def test_zhen_h5():
-    model = form_model(ativa='relu')
-    weights_fn, weights_path = find_weights('_2_4_8_xdviolence_model_weights')
+    model = form_model(ativa='relu',optima='sgd')
+    weights_fn, weights_path = find_weights(weights_path_zhen,'_2_4_8_xdviolence_model_weights')
     onev_fn, y_onev_labels = test_files(onev = 10)
     
     for i in range(len(weights_fn)):
@@ -981,20 +985,31 @@ def test_zhen_h5():
 '''Everything that creates variables should be under the strategy scope.In general this is only model construction & `compile()` '''
 #with strategy.scope():
 #    model_gelu = form_model(ativa = 'gelu')
-#model_gelu = train_model(model_gelu,'_3gelu_xdviolence')
+#model_gelu = train_model(model_gelu,'_3gelu_xdviolence',weights_path_zu)
 
 
-#model_gelu = form_model(ativa = 'gelu')
-#model_gelu = train_model(model_gelu,'_3gelu_xdviolence')
+#load model error with activation
+#model_gelu = keras.models.load_model(weights_path[0],custom_objects={'gelu': gelu})
 
 
-weights_fn, weights_path = find_weights('_3gelu_xdviolence')
-print(weights_fn,weights_path)
-#model_gelu = tf.keras.models.load_model(model_path)
 
-#test_model(model=model_gelu,test_files=test_fn,rslt_path=rslt_path_zu)
+#model_gelu = form_model(ativa = tf.keras.activations.gelu)
+#model_gelu = form_model(ativa = "gelu",optima='sgd')
+
+#weights_fn, weights_path = find_weights(weights_path_zu,'_3gelu_xdviolence')
+#print(weights_fn,weights_path)
+
+#https://stackoverflow.com/questions/72524486/i-get-this-error-attributeerror-nonetype-object-has-no-attribute-predict
+#model_gelu.load_weights(str(weights_path[0]))
 
 # %%
+model_gelu_adam = form_model(ativa = "gelu",optima='adam')
+model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_xdviolence',weights_path_zu)
 
+# %%
+#predict_total_max, predict_total = test_model(model=model_gelu,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))
+
+# %%
+#res_list_full, res_list_max, res_list_fn, res_list_labels = get_results_from_txt(rslt_path=rslt_path_zu)
 
 

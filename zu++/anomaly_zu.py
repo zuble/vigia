@@ -1,3 +1,20 @@
+# -*- coding: utf-8 -*-
+# ---
+# jupyter:
+#   jupytext:
+#     cell_metadata_filter: -all
+#     custom_cell_magics: kql
+#     text_representation:
+#       extension: .py
+#       format_name: percent
+#       format_version: '1.3'
+#       jupytext_version: 1.11.2
+#   kernelspec:
+#     display_name: zhen_gpu
+#     language: python
+#     name: python3
+# ---
+
 # %%
 import os, time, random, logging
 import cv2
@@ -9,13 +26,14 @@ import tensorflow as tf
 print(tf.version.VERSION)
 
 from tensorflow import keras
+
+
 #from keras import models, layers, backend as K
 #from keras.layers import Activation
-#from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint
 ##from tensorflow.keras.utils import get_custom_objects
 #from keras.utils.generic_utils import get_custom_objects
 from tqdm.keras import TqdmCallback
-
 from IPython import display
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -24,15 +42,14 @@ from sklearn.metrics import confusion_matrix
 
 # %%
 """ PATH VAR """
+#base_vigia_dir = "/media/jtstudents/HDD/.zuble/vigia"
+#server_trainame_folder = '/media/jtstudents/HDD/.zuble/xdviol/train'
+#server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
 
-base_vigia_dir = "/media/jtstudents/HDD/.zuble/vigia"
-server_trainame_folder = '/media/jtstudents/HDD/.zuble/xdviol/train'
-server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
-
-#base_vigia_dir = "/raid/DATASETS/.zuble/vigia"
-#server_trainame_folder = '/raid/DATASETS/anomaly/XD_Violence/training/'
-#server_testname_folder = '/raid/DATASETS/anomaly/XD_Violence/testing'
-##server_trainame_folder = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
+base_vigia_dir = "/raid/DATASETS/.zuble/vigia"
+server_trainame_folder = '/raid/DATASETS/anomaly/XD_Violence/training/'
+server_testname_folder = '/raid/DATASETS/anomaly/XD_Violence/testing'
+#server_trainame_folder = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
 
 model_path = base_vigia_dir+'/zu++/model/model/'
 ckpt_path = base_vigia_dir+'/zu++/model/ckpt/'
@@ -124,7 +141,7 @@ time_str = str(time.time())
 print("\ntime_str=",time_str,"\n")
 
 
-batch_type = 1  # =1 last batch has 4000 frames // =2 last batch has no repetead frames
+batch_type = 2  # =1 last batch has 4000 frames // =2 last batch has no repetead frames
 print("\n\n\tBATCH TYPE",batch_type)
 
 # %%
@@ -135,7 +152,7 @@ def input_video_data(file_name):
     #file_name = '/raid/DATASETS/anomaly/UCF_Crimes/Videos/Training_Normal_Videos_Anomaly/Normal_Videos308_x264.mp4'
     video = cv2.VideoCapture(file_name)
     total_frame = video.get(cv2.CAP_PROP_FRAME_COUNT)
-    mtcnn_detector = mtcnn.mtcnn.MTCNN()
+    #mtcnn_detector = mtcnn.mtcnn.MTCNN()
     #print(file_name + '  ' + str(total_frame))
     divid_no = 1
     
@@ -628,6 +645,7 @@ def form_model(ativa,optima):
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
     sgd = keras.optimizers.SGD(learning_rate = 0.0002)
     adam = keras.optimizers.Adam(learning_rate = 0.0002)
+    adam_amsgrad = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
     METRICS = [
         keras.metrics.TruePositives(name='tp'),
         keras.metrics.FalsePositives(name='fp'),
@@ -683,7 +701,7 @@ def train_model(model,model_name,weights_path):
 
 def test_model(model, files, rslt_path, model_weight_fn=''):
     print("\nTEST MODEL\n")
-    txt_fn = rslt_path+model_weight_fn+'_'+str(batch_type)+'.txt'
+    txt_fn = rslt_path+model_weight_fn+'.txt'
     f = open(txt_fn, 'w')
     content_str = ''
     total_frames_test = 0
@@ -834,7 +852,8 @@ def get_precision_recall_f1(labels, predictions):
     
     #https://glassboxmedicine.com/2019/03/02/measuring-performance-auprc/
     auprc_ap = sklearn.metrics.average_precision_score(labels, predictions)
-    print("\tAP ( AreaUnderPrecisionRecallCurve )",auprc_ap)
+    aucroc = sklearn.metrics.roc_auc_score(labels, predictions)
+    print("\tAP ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
     
     #https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
     #import tensorflow_addons as tfa
@@ -843,7 +862,7 @@ def get_precision_recall_f1(labels, predictions):
     f1_res = 2*((p_res*r_res)/(p_res+r_res+K.epsilon()))
     print("\tF1_SCORE (harmonic mean of precision and recall) ",f1_res)
     
-    return p_res,r_res,auprc_ap,f1_res
+    return p_res,r_res,auprc_ap,aucroc,f1_res
 
 
 # %%
@@ -1002,7 +1021,7 @@ def test_zhen_h5():
 #model_gelu = form_model(ativa = tf.keras.activations.gelu)
 #model_gelu = form_model(ativa = "gelu",optima='sgd')
 
-#weights_fn, weights_path = find_weights(weights_path_zu,'_3gelu_xdviolence')
+#weights_fn, weights_path = find_weights(weights_path_zu,'_3gelu_sgd_1_xdviolence')
 #print(weights_fn,weights_path)
 
 #https://stackoverflow.com/questions/72524486/i-get-this-error-attributeerror-nonetype-object-has-no-attribute-predict
@@ -1010,10 +1029,10 @@ def test_zhen_h5():
 
 # %%
 model_relu_sgd = form_model(ativa = "relu",optima='sgd')
-model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_xdviolence',weights_path_zu)
+model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_'+str(batch_type)+'_xdviolence',weights_path_zu)
 
-model_gelu_adam = form_model(ativa = "gelu",optima='adam')
-model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_xdviolence',weights_path_zu)
+#model_gelu_adam = form_model(ativa = "gelu",optima='adam')
+#model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_'+str(batch_type)+'_xdviolence',weights_path_zu)
 
 # %%
 #predict_total_max, predict_total = test_model(model=model_gelu,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))

@@ -8,12 +8,12 @@ import pandas as pd
 import tensorflow as tf
 print(tf.version.VERSION)
 
-import keras
-from keras import models, layers, backend as K
-from keras.layers import Activation
-from keras.callbacks import ModelCheckpoint
-#from keras.utils import get_custom_objects
-from keras.utils.generic_utils import get_custom_objects
+from tensorflow import keras
+#from keras import models, layers, backend as K
+#from keras.layers import Activation
+#from keras.callbacks import ModelCheckpoint
+##from tensorflow.keras.utils import get_custom_objects
+#from keras.utils.generic_utils import get_custom_objects
 from tqdm.keras import TqdmCallback
 
 from IPython import display
@@ -577,7 +577,7 @@ def loss_category(y_true, y_pred):
 
 def gelu(x):
     return 0.5*x*(1+tf.tanh(np.sqrt(2/np.pi)*(x+0.044715*tf.pow(x, 3))))
-get_custom_objects().update({'gelu': gelu})
+#get_custom_objects().update({'gelu': Activation(gelu)})
 
 def find_weights(path,find_string): 
     weights_fn = []
@@ -599,6 +599,7 @@ def form_model(ativa,optima):
     #Freeze the batch normalization
     
     c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
+    #c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) #another way
     c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
     c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation=ativa)(c3d_pooling1)
     c3d_pooling2 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer2)
@@ -620,7 +621,7 @@ def form_model(ativa,optima):
     #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
     soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
     
-    model = models.Model(inputs=[image_input], outputs=[soft_max])
+    model = keras.Model(inputs=[image_input], outputs=[soft_max])
     model.summary()
     
 
@@ -656,7 +657,7 @@ def train_model(model,model_name,weights_path):
     if not os.path.exists(ckpt_path+'/'+time_str+model_name):
         os.makedirs(ckpt_path+'/'+time_str+model_name)
     #https://keras.io/api/callbacks/model_checkpoint/
-    checkpoint = ModelCheckpoint(filepath=ckpt_path+'/'+time_str+model_name+'/ckpt-{epoch:08d}.h5')
+    checkpoint = ModelCheckpoint(filepath=ckpt_path+'/'+time_str+model_name+'/'+time_str+model_name+'_ckpt-{epoch:08d}.h5')
 
     #para_file_name = '.262731_2_4_8_xdviolence_anomaly_00000010.h5'
     #model.load_weights(para_file_name)
@@ -669,6 +670,7 @@ def train_model(model,model_name,weights_path):
                         callbacks=[checkpoint, TqdmCallback(verbose=2)])
 
     model.save(model_path + time_str + model_name + '.h5')
+    model.save(model_path + time_str + model_name )
     model.save_weights(weights_path + time_str + model_name + '_weights.h5')  
 
     hist_df = pd.DataFrame(history.history)
@@ -966,10 +968,10 @@ def test_zhen_h5():
         get_precision_recall_f1(y_onev_labels, y_test_pred)
         #watch_test(predict_total,onev_fn)
         
-''' 
-=1 last batch has 4000 frames 
-=2 last batch has no repetead frames 
-'''
+    ''' 
+    =1 last batch has 4000 frames 
+    =2 last batch has no repetead frames 
+    '''
 #batch_type = 2
 #print("\n\n\tBATCH TYPE",batch_type)
 
@@ -988,11 +990,15 @@ def test_zhen_h5():
 #model_gelu = train_model(model_gelu,'_3gelu_xdviolence',weights_path_zu)
 
 
-#load model error with activation
-#model_gelu = keras.models.load_model(weights_path[0],custom_objects={'gelu': gelu})
+''' load model from model_save '''
+#weights_fn, weights_path = find_weights(model_path,'_3gelu_xdviolence')
+#print(weights_fn,weights_path)
+
+##load model error with activation
+#model_gelu = keras.models.load_model(weights_path[0],custom_objects={'gelu': Activation(gelu)})
 
 
-
+''' create model arch and loads weights '''
 #model_gelu = form_model(ativa = tf.keras.activations.gelu)
 #model_gelu = form_model(ativa = "gelu",optima='sgd')
 
@@ -1003,6 +1009,9 @@ def test_zhen_h5():
 #model_gelu.load_weights(str(weights_path[0]))
 
 # %%
+model_relu_sgd = form_model(ativa = "relu",optima='sgd')
+model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_xdviolence',weights_path_zu)
+
 model_gelu_adam = form_model(ativa = "gelu",optima='adam')
 model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_xdviolence',weights_path_zu)
 

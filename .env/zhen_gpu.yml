@@ -245,3 +245,4 @@ dependencies:
       - scipy==1.4.1
       - tensorboard==2.2.2
 prefix: /home/jtstudents/anaconda3/envs/zhen_gpu
+

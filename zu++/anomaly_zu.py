@@ -1034,6 +1034,9 @@ model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_'+str(batch_type)+'_xdvi
 #model_gelu_adam = form_model(ativa = "gelu",optima='adam')
 #model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_'+str(batch_type)+'_xdviolence',weights_path_zu)
 
+#model_gelu_adamamsgrad = form_model(ativa = "gelu",optima='adam_amsgrad')
+#model_gelu_adamamsgrad = train_model(model_gelu_adamamsgrad,'_3gelu_adamamsgrad_'+str(batch_type)+'_xdviolence',weights_path_zu)
+
 # %%
 #predict_total_max, predict_total = test_model(model=model_gelu,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))
 

@@ -616,7 +616,7 @@ def form_model(ativa,optima):
     #Freeze the batch normalization
     
     c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
-    c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) 
+    c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1)
     c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
     c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation=ativa)(c3d_pooling1)
     c3d_pooling2 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer2)
@@ -1029,11 +1029,11 @@ def test_zhen_h5():
 #model_gelu.load_weights(str(weights_path[0]))
 
 # %%
-model_relu_sgd = form_model(ativa = "relu",optima='sgd')
-model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_'+str(batch_type)+'_xdviolence',weights_path_zu)
+#model_relu_sgd = form_model(ativa = "relu",optima='sgd')
+#model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_'+str(batch_type)+'_xdviolence',weights_path_zu)
 
-#model_gelu_adam = form_model(ativa = gelu,optima='adam')
-#model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_'+str(batch_type)+'_xdviolence',weights_path_zu)
+model_gelu_adam = form_model(ativa = gelu,optima='adam')
+model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_'+str(batch_type)+'_xdviolence',weights_path_zu)
 
 #model_gelu_adamamsgrad = form_model(ativa = gelu,optima='adam_amsgrad')
 #model_gelu_adamamsgrad = train_model(model_gelu_adamamsgrad,'_3gelu_adamamsgrad_'+str(batch_type)+'_xdviolence',weights_path_zu)

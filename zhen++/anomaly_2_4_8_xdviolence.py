@@ -14,6 +14,8 @@ import tensorflow as tf
 import os, time, random
 import time
 import random
+import sklearn
+from sklearn.metrics import confusion_matrix
 
 #frame_no = 8
 
@@ -425,6 +427,100 @@ frame_max = 4000
 update_index = range(0, len(train_fn))
 
 
+def get_precision_recall_f1(labels, predictions):
+    p = tf.keras.metrics.Precision(thresholds = 0.5)
+    p.update_state(labels, predictions)
+    p_res = p.result().numpy()
+    print("\tPRECISION (%% of True Positive out of all Positive predicted) ",p_res)
+    
+    r = tf.keras.metrics.Recall(thresholds=0.5)
+    r.update_state(labels, predictions)
+    r_res = r.result().numpy()
+    print("\tRECALL (%% of True Positive out of all actual anomalies) ",r_res)
+    
+    #https://glassboxmedicine.com/2019/03/02/measuring-performance-auprc/
+    auprc_ap = sklearn.metrics.average_precision_score(labels, predictions)
+    aucroc = sklearn.metrics.roc_auc_score(labels, predictions)
+    print("\tAP ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
+    
+    #https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
+    #import tensorflow_addons as tfa
+    #f1 = tfa.metrics.F1Score(num_classes=2, threshold=0.5)
+    #f1.update_state(labels, predictions)
+    f1_res = 2*((p_res*r_res)/(p_res+r_res+K.epsilon()))
+    print("\tF1_SCORE (harmonic mean of precision and recall) ",f1_res)
+    
+    return p_res,r_res,auprc_ap,aucroc,f1_res
+
+def buf_count_newlines_gen(fname):
+    def _make_gen(reader):
+        while True:
+            b = reader(2 ** 16)
+            if not b: break
+            yield b
+
+    with open(fname, "rb") as f:
+        count = sum(buf.count(b"\n") for buf in _make_gen(f.raw.read))
+    return count
+
+def get_results_from_txt(rslt_path):
+    res_txt_fn = []
+    res_model_fn = []
+    
+    for file in os.listdir(rslt_path):
+        fname, fext = os.path.splitext(file)
+        if fext == ".txt" and file.find('xdviolence') != -1:
+            res_txt_fn.append(os.path.join(rslt_path, file))
+            res_model_fn.append(fname)
+    
+    res_txt_fn = sorted(res_txt_fn)
+    res_model_fn = sorted(res_model_fn)
+    
+    i=0
+    #res_list_full = [[() for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
+    res_list_max = [[0.0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
+    res_list_fn = [['' for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
+    #print('res_list_full',np.shape(res_list_full))
+    print('res_list_max',np.shape(res_list_max))
+    print('res_list_fn',np.shape(res_list_fn))
+    
+    n_models = len(res_txt_fn)
+    for txt_i in range(n_models):
+        print('\nOPENING',res_txt_fn[txt_i])
+        txt = open(res_txt_fn[txt_i],'r')
+        txt_data = txt.read()
+        txt.close()
+
+        video_list = [line.split() for line in txt_data.split("\n") if line]
+        
+        for video_j in range(len(video_list)):
+            aux_line = str(video_list[video_j]).replace('[','').replace(']','').replace(' ','').split('|')
+        
+            res_list_fn[video_j][txt_i] = aux_line[0]
+            res_list_max[video_j][txt_i] = float(aux_line[1])
+            
+            #aux2_line = aux_line[2].replace(' ','').replace("'","").replace('(','').replace(')','').split(',')
+            #print(aux2_line)
+            #res_list_full[video_j][txt_i] = aux2_line
+    
+    
+    res_list_labels = [[0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
+    n_videos = np.shape(res_list_fn)[0]
+    for txt_i in range(n_models):
+        for video_j in range(n_videos):
+            if 'label_A' not in res_list_fn[video_j][txt_i]:
+                res_list_labels[video_j][txt_i] = 1
+        
+    for i in range(len(res_txt_fn)):
+        print("\nresults for",res_model_fn[i])
+            
+        res_col = [col[i] for col in res_list_max]
+        labels_col = [col[i] for col in res_list_labels]
+        get_precision_recall_f1(labels_col,res_col)
+        
+    return res_list_max, res_list_fn, res_list_labels
+
+
 '''
 has_visited = [0 for i in range(len(train_fn))]
 
@@ -463,9 +559,11 @@ time_str = str(time.time())
 print("\ntime_str=",time_str,"\n")        
 
 
-model = model_train()
+#model = model_train()
 
-crime_test(model) 
+#crime_test(model) 
+
+res_list_max, res_list_fn, res_list_labels  = get_results_from_txt('/raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt')
 
 
 '''

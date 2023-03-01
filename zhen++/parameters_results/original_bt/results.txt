@@ -1,0 +1,137 @@
+
+test_fn (0,) 
+test_normal_fn (0,) 
+test_abnormal_fn (0,)
+
+train_fn= (0,)
+
+time_str= 1677248584.130975 
+
+res_list_max (800, 14)
+res_list_fn (800, 14)
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1625759299.9331803_2_4_8_xdviolence_model_weights_1.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1625759299.9331803_2_4_8_xdviolence_model_weights_2.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1626306295.6228774_2_4_8_xdviolence_model_weights_1.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1626306295.6228774_2_4_8_xdviolence_model_weights_2.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1626691755.4069657_2_4_8_xdviolence_model_weights_1.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1626691755.4069657_2_4_8_xdviolence_model_weights_2.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1626947956.798592_2_4_8_xdviolence_model_weights_1.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1626947956.798592_2_4_8_xdviolence_model_weights_2.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1627169149.3222094_2_4_8_xdviolence_model_weights_1.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1627169149.3222094_2_4_8_xdviolence_model_weights_2.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1627553113.262731_2_4_8_xdviolence_model_weights_1.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1627553113.262731_2_4_8_xdviolence_model_weights_2.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1627900597.7432737_2_4_8_xdviolence_model_weights_1.txt
+
+OPENING /raid/DATASETS/.zuble/vigia/zhen++/parameters_results/original_bt/1627900597.7432737_2_4_8_xdviolence_model_weights_2.txt
+
+results for 1625759299.9331803_2_4_8_xdviolence_model_weights_1
+	PRECISION (%% of True Positive out of all Positive predicted)  0.89938396
+	RECALL (%% of True Positive out of all actual anomalies)  0.876
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9470 
+	 AUC-ROC 0.9223 
+	F1_SCORE (harmonic mean of precision and recall)  0.8875379208674699
+
+results for 1625759299.9331803_2_4_8_xdviolence_model_weights_2
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8596491
+	RECALL (%% of True Positive out of all actual anomalies)  0.882
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9318 
+	 AUC-ROC 0.9000 
+	F1_SCORE (harmonic mean of precision and recall)  0.8706810966082545
+
+results for 1626306295.6228774_2_4_8_xdviolence_model_weights_1
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8977505
+	RECALL (%% of True Positive out of all actual anomalies)  0.878
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9480 
+	 AUC-ROC 0.9227 
+	F1_SCORE (harmonic mean of precision and recall)  0.8877653512947838
+
+results for 1626306295.6228774_2_4_8_xdviolence_model_weights_2
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8579767
+	RECALL (%% of True Positive out of all actual anomalies)  0.882
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9341 
+	 AUC-ROC 0.9015 
+	F1_SCORE (harmonic mean of precision and recall)  0.8698224806210378
+
+results for 1626691755.4069657_2_4_8_xdviolence_model_weights_1
+	PRECISION (%% of True Positive out of all Positive predicted)  0.89161557
+	RECALL (%% of True Positive out of all actual anomalies)  0.872
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9492 
+	 AUC-ROC 0.9242 
+	F1_SCORE (harmonic mean of precision and recall)  0.8816986200327147
+
+results for 1626691755.4069657_2_4_8_xdviolence_model_weights_2
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8557505
+	RECALL (%% of True Positive out of all actual anomalies)  0.878
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9355 
+	 AUC-ROC 0.9034 
+	F1_SCORE (harmonic mean of precision and recall)  0.8667324318695254
+
+results for 1626947956.798592_2_4_8_xdviolence_model_weights_1
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8952772
+	RECALL (%% of True Positive out of all actual anomalies)  0.872
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9504 
+	 AUC-ROC 0.9253 
+	F1_SCORE (harmonic mean of precision and recall)  0.8834852474077469
+
+results for 1626947956.798592_2_4_8_xdviolence_model_weights_2
+	PRECISION (%% of True Positive out of all Positive predicted)  0.85546875
+	RECALL (%% of True Positive out of all actual anomalies)  0.876
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9368 
+	 AUC-ROC 0.9044 
+	F1_SCORE (harmonic mean of precision and recall)  0.8656126080250209
+
+results for 1627169149.3222094_2_4_8_xdviolence_model_weights_1
+	PRECISION (%% of True Positive out of all Positive predicted)  0.89375
+	RECALL (%% of True Positive out of all actual anomalies)  0.858
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9508 
+	 AUC-ROC 0.9257 
+	F1_SCORE (harmonic mean of precision and recall)  0.875510132437072
+
+results for 1627169149.3222094_2_4_8_xdviolence_model_weights_2
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8534653
+	RECALL (%% of True Positive out of all actual anomalies)  0.862
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9372 
+	 AUC-ROC 0.9047 
+	F1_SCORE (harmonic mean of precision and recall)  0.8577113521990732
+
+results for 1627553113.262731_2_4_8_xdviolence_model_weights_1
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8933054
+	RECALL (%% of True Positive out of all actual anomalies)  0.854
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9512 
+	 AUC-ROC 0.9262 
+	F1_SCORE (harmonic mean of precision and recall)  0.8732105881576936
+
+results for 1627553113.262731_2_4_8_xdviolence_model_weights_2
+	PRECISION (%% of True Positive out of all Positive predicted)  0.861167
+	RECALL (%% of True Positive out of all actual anomalies)  0.856
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9374 
+	 AUC-ROC 0.9049 
+	F1_SCORE (harmonic mean of precision and recall)  0.8585756687566547
+
+results for 1627900597.7432737_2_4_8_xdviolence_model_weights_1
+	PRECISION (%% of True Positive out of all Positive predicted)  0.84586465
+	RECALL (%% of True Positive out of all actual anomalies)  0.9
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9369 
+	 AUC-ROC 0.9070 
+	F1_SCORE (harmonic mean of precision and recall)  0.872092939957383
+
+results for 1627900597.7432737_2_4_8_xdviolence_model_weights_2
+	PRECISION (%% of True Positive out of all Positive predicted)  0.8136201
+	RECALL (%% of True Positive out of all actual anomalies)  0.908
+	AP ( AreaUnderPrecisionRecallCurve ) 0.9255 
+	 AUC-ROC 0.8894 
+	F1_SCORE (harmonic mean of precision and recall)  0.8582230101760421

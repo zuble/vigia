@@ -1,20 +1,3 @@
-# -*- coding: utf-8 -*-
-# ---
-# jupyter:
-#   jupytext:
-#     cell_metadata_filter: -all
-#     custom_cell_magics: kql
-#     text_representation:
-#       extension: .py
-#       format_name: percent
-#       format_version: '1.3'
-#       jupytext_version: 1.11.2
-#   kernelspec:
-#     display_name: zhen_gpu
-#     language: python
-#     name: python3
-# ---
-
 # %%
 import os, time, random, logging
 import cv2
@@ -26,14 +9,14 @@ import tensorflow as tf
 print(tf.version.VERSION)
 
 from tensorflow import keras
-
-
+from keras import backend as K
 #from keras import models, layers, backend as K
 #from keras.layers import Activation
-from keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint
 ##from tensorflow.keras.utils import get_custom_objects
 #from keras.utils.generic_utils import get_custom_objects
 from tqdm.keras import TqdmCallback
+
 from IPython import display
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -124,7 +107,6 @@ def train_files():
     
     return train_fn
 
-
 # %%
 """ GLOBAL VAR + test/train inputs """
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -141,8 +123,9 @@ time_str = str(time.time())
 print("\ntime_str=",time_str,"\n")
 
 
-batch_type = 2  # =1 last batch has 4000 frames // =2 last batch has no repetead frames
-print("\n\n\tBATCH TYPE",batch_type)
+batch_type = 1  # =1 last batch has 4000 frames // =2 last batch has no repetead frames
+print("\nBATCH TYPE",batch_type)
+print("\nFRAME MAX",frame_max)
 
 # %%
 """ INPUT DATA"""
@@ -577,7 +560,6 @@ def watch_test(predict_total,test_files):
 
     file_number =+ 1
 
-
 # %%
 """ MODEL """
 
@@ -599,11 +581,13 @@ def gelu(x):
 def find_weights(path,find_string): 
     weights_fn = []
     weights_path = []
-
+    
     for file in os.listdir(path):
         fname, fext = os.path.splitext(file)
-        if fext == ".h5" and file.find(find_string) != -1 :
-            print(file)
+        aux = 0
+        for i in range(len(find_string)):    
+            if find_string[i] in fname:aux = aux + 1
+        if fext == ".h5" and aux == len(find_string):
             weights_path.append(os.path.join(path, file))
             weights_fn.append(file)
 
@@ -615,14 +599,20 @@ def form_model(ativa,optima):
     image_input = keras.Input(shape=(None, target_height, target_width, 3))
     #Freeze the batch normalization
     
+    #https://www.tensorflow.org/api_docs/python/tf/keras/activations
+    #https://www.tensorflow.org/api_docs/python/tf/nn/leaky_relu
+    if ativa == 'leakyrelu':
+        ativa = keras.layers.LeakyReLU()
+    print(ativa)
+
     c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
-    c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) 
+    #c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) #another way
     c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
     c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation=ativa)(c3d_pooling1)
     c3d_pooling2 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer2)
     c3d_layer3 = keras.layers.Conv3D(16,(8,3,3), activation=ativa)(c3d_pooling2)
     c3d_pooling3 = keras.layers.MaxPooling3D((4,2,2))(c3d_layer3)
-    #c3d_layer4 = keras.layers.Conv3D(32,(2,3,3), activation=ativa)(c3d_pooling3)
+    #c3d_layer4 = keras.layers.Conv3D(32,(2,3,3), activation=activa)(c3d_pooling3)
     #c3d_pooling4 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer4)
     
     feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3) #flatten spatial features to time series
@@ -634,7 +624,6 @@ def form_model(ativa,optima):
     #ADD THE AUDIO FEATURE HERE 
     
     dense_1 = keras.layers.Dense(128, activation=ativa)(global_feature)
-    
     #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
     soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
     
@@ -643,6 +632,7 @@ def form_model(ativa,optima):
     
 
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
+    #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
     if optima=='sgd':optima = keras.optimizers.SGD(learning_rate = 0.0002)
     if optima=='adam':optima = keras.optimizers.Adam(learning_rate = 0.0002)
     if optima=='adam_amsgrad':optima = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
@@ -673,10 +663,10 @@ def train_model(model,model_name,weights_path):
     (silent mode - verbose = 0)
     '''
     
-    if not os.path.exists(ckpt_path+time_str+model_name):
-        os.makedirs(ckpt_path+time_str+model_name)
+    if not os.path.exists(ckpt_path+'/'+time_str+model_name):
+        os.makedirs(ckpt_path+'/'+time_str+model_name)
     #https://keras.io/api/callbacks/model_checkpoint/
-    checkpoint = ModelCheckpoint(filepath=ckpt_path+time_str+model_name+'/'+time_str+model_name+'_ckpt-{epoch:08d}.h5')
+    checkpoint = ModelCheckpoint(filepath=ckpt_path+'/'+time_str+model_name+'/'+time_str+model_name+'_ckpt-{epoch:08d}.h5')
 
     #para_file_name = '.262731_2_4_8_xdviolence_anomaly_00000010.h5'
     #model.load_weights(para_file_name)
@@ -792,7 +782,6 @@ def test_model(model, files, rslt_path, model_weight_fn=''):
     
     return predict_total_max, predict_total
 
-
 # %%
 """ METRICS
     https://www.tensorflow.org/tutorials/structured_data/imbalanced_data """
@@ -865,7 +854,6 @@ def get_precision_recall_f1(labels, predictions):
     
     return p_res,r_res,auprc_ap,aucroc,f1_res
 
-
 # %%
 ''' GPU CONFIGURATION
     https://www.tensorflow.org/guide/gpu '''
@@ -928,7 +916,6 @@ def get_results_from_txt(rslt_path):
     res_txt_fn = sorted(res_txt_fn)
     res_model_fn = sorted(res_model_fn)
     
-
     i=0
     res_list_full = [[() for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
     res_list_max = [[0.0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
@@ -1029,8 +1016,24 @@ def test_zhen_h5():
 #model_gelu.load_weights(str(weights_path[0]))
 
 # %%
-model_relu_sgd = form_model(ativa = "relu",optima='sgd')
-model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_'+str(batch_type)+'_xdviolence',weights_path_zu)
+'''TRAIN DIFF MODELS'''
+
+#frame_max = 2000
+#model_relu_adam_2000 = form_model(ativa = 'relu' ,optima='adam')
+#model_relu_adam_2000 = train_model(model_relu_adam_2000,'_relu_adam_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
+
+
+#frame_max = 2000
+#model_leakyrelu_adam = form_model(ativa = 'leakyrelu' ,optima='adam')
+#model_leakyrelu_adam = train_model(model_leakyrelu_adam,'_leakyrelu_adam_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
+
+#frame_max = 1000
+#model_leakyrelu_adam = form_model(ativa = 'leakyrelu' ,optima='adam')
+#model_leakyrelu_adam = train_model(model_leakyrelu_adam,'_leakyrelu_adam_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
+
+model_relu_sgd = form_model(ativa = 'relu' ,optima='sgd')
+model_relu_sgd = train_model(model_relu_sgd,'_relu_sgd_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
+
 
 #model_gelu_adam = form_model(ativa = gelu,optima='adam')
 #model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_'+str(batch_type)+'_xdviolence',weights_path_zu)
@@ -1039,9 +1042,43 @@ model_relu_sgd = train_model(model_relu_sgd,'_3relu_sgd_'+str(batch_type)+'_xdvi
 #model_gelu_adamamsgrad = train_model(model_gelu_adamamsgrad,'_3gelu_adamamsgrad_'+str(batch_type)+'_xdviolence',weights_path_zu)
 
 # %%
-#predict_total_max, predict_total = test_model(model=model_gelu,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))
+'''TEST DIFF MODELS'''
+#batch_type = 1
+
+#frame_max = 2000
+#weights_fn, weights_path = find_weights(weights_path_zu,('adam_1_2000',))
+#model_leakyrelu_adam_2000 = form_model(ativa = 'leakyrelu' ,optima='adam')
+
+#frame_max = 1000
+#weights_fn, weights_path = find_weights(weights_path_zu,('adam_1_1000',))
+#model_leakyrelu_adam_1000 = form_model(ativa = 'leakyrelu' ,optima='adam')
+
+#frame_max = 2000
+#weights_fn, weights_path = find_weights(weights_path_zu,('relu_adam_1_2000',))
+#model_relu_adam_2000 = form_model(ativa = 'relu' ,optima='adam')
+
+
+#weights_fn, weights_path = find_weights(weights_path_zu,('adam_1_',))
+#model_gelu_adam = form_model(ativa = gelu,optima='adam')
+
+#weights_fn, weights_path = find_weights(weights_path_zu,('adamamsgrad_1_',))
+#model_gelu_adamamsgrad = form_model(ativa = gelu,optima='adam_amsgrad')
+
+#weights_fn, weights_path = find_weights(weights_path_zu,('sgd_1_',))
+#model_gelu_sgd = form_model(ativa = gelu,optima='sgd')
+
+#predict_total_max, predict_total = test_model(model=model_relu_adam_2000,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))
+
+
+#batch_type = 2
+
+#weights_fn, weights_path = find_weights(weights_path_zu,('adam_2_',))
+#model_gelu_adam = form_model(ativa = gelu,optima='adam')
+
+#predict_total_max, predict_total = test_model(model=model_gelu_adam,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))
 
 # %%
+'''get_results_from_txt'''
 #res_list_full, res_list_max, res_list_fn, res_list_labels = get_results_from_txt(rslt_path=rslt_path_zu)
 
 

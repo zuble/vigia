@@ -1,0 +1,5 @@
+Remove directory from remote repository after adding them to .gitignore
+
+    git rm --cached `git ls-files -i -c --exclude-from=.gitignore` 
+    git commit -m 'Removed all files that are in the .gitignore' 
+    git push origin main

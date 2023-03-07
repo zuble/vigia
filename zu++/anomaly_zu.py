@@ -2,6 +2,8 @@
 import os, time, random, logging
 import cv2
 import numpy as np
+import PySimpleGUI as sg
+from pathlib import Path
 #import mtcnn
 
 import pandas as pd
@@ -12,8 +14,8 @@ from tensorflow import keras
 from keras import backend as K
 #from keras import models, layers, backend as K
 #from keras.layers import Activation
-from tensorflow.keras.callbacks import ModelCheckpoint
-##from tensorflow.keras.utils import get_custom_objects
+from keras.callbacks import ModelCheckpoint
+#from tensorflow.keras.utils import get_custom_objects
 #from keras.utils.generic_utils import get_custom_objects
 from tqdm.keras import TqdmCallback
 
@@ -25,23 +27,66 @@ from sklearn.metrics import confusion_matrix
 
 # %%
 """ PATH VAR """
-#base_vigia_dir = "/media/jtstudents/HDD/.zuble/vigia"
-#server_trainame_folder = '/media/jtstudents/HDD/.zuble/xdviol/train'
-#server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
 
-base_vigia_dir = "/raid/DATASETS/.zuble/vigia"
-server_trainame_folder = '/raid/DATASETS/anomaly/XD_Violence/training/'
-server_testname_folder = '/raid/DATASETS/anomaly/XD_Violence/testing'
-#server_trainame_folder = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
+ssh4wd = True#False#
+zu = True#False#
 
-model_path = base_vigia_dir+'/zu++/model/model/'
-ckpt_path = base_vigia_dir+'/zu++/model/ckpt/'
-hist_path = base_vigia_dir+'/zu++/model/hist/'
-rslt_path_zu = base_vigia_dir+'/zu++/model/rslt/'
-rslt_path_zhen = base_vigia_dir+'/zhen++/parameters_results'
+if ssh4wd:
+    base_vigia_dir = "/raid/DATASETS/.zuble/vigia"
 
-weights_path_zu = base_vigia_dir+'/zu++/model/weights/'
-weights_path_zhen = base_vigia_dir+"/zhen++/parameters_saved"
+    server_trainame_folder = '/raid/DATASETS/anomaly/XD_Violence/training/'
+    server_testname_folder = '/raid/DATASETS/anomaly/XD_Violence/testing'
+else:
+    base_vigia_dir = "/media/jtstudents/HDD/.zuble/vigia"
+
+    server_trainame_folder = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
+    server_trainame_folder = '/media/jtstudents/HDD/.zuble/xdviol/train'
+    server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
+    
+if zu:
+    model_path = base_vigia_dir+'/zu++/model/model/'
+    ckpt_path = base_vigia_dir+'/zu++/model/ckpt/'
+    hist_path = base_vigia_dir+'/zu++/model/hist/'
+
+    rslt_path = base_vigia_dir+'/zu++/model/rslt/'
+    weights_path = base_vigia_dir+'/zu++/model/weights/'
+else:
+    weights_path = base_vigia_dir+"/zhen++/parameters_saved"
+    rslt_path = base_vigia_dir+'zhen++/parameters_results/original_bt'
+
+# %%
+''' GPU CONFIGURATION
+    https://www.tensorflow.org/guide/gpu '''
+
+def set_tf_loglevel(level):
+    if level >= logging.FATAL:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    if level >= logging.ERROR:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    if level >= logging.WARNING:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+    else:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+    logging.getLogger('tensorflow').setLevel(level)
+
+set_tf_loglevel(logging.WARNING)
+tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
+gpus = tf.config.list_physical_devices('GPU')
+
+#https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
+#if gpus:
+#    print("\nAvaiable GPU's",gpus)
+#    try:
+#        # Currently, memory growth needs to be the same across GPUs
+#        for gpu in gpus:
+#            tf.config.experimental.set_memory_growth(gpu, True)
+#        
+#        logical_gpus = tf.config.list_logical_devices('GPU')
+#        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+#    except RuntimeError as e:
+#        # Memory growth must be set before GPUs have been initialized
+#        print(e)
 
 # %%
 """ TEST/TRAIN FILES """
@@ -107,25 +152,13 @@ def train_files():
     
     return train_fn
 
-# %%
-""" GLOBAL VAR + test/train inputs """
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-target_height = 120
-target_width = 160
-frame_max = 4000
+colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 test_fn, y_test_labels = test_files()
 train_fn = train_files()
 
 update_index = range(0, len(train_fn))
-time_str = str(time.time())
-print("\ntime_str=",time_str,"\n")
-
-
-batch_type = 1  # =1 last batch has 4000 frames // =2 last batch has no repetead frames
-print("\nBATCH TYPE",batch_type)
-print("\nFRAME MAX",frame_max)
 
 # %%
 """ INPUT DATA"""
@@ -139,12 +172,12 @@ def input_video_data(file_name):
     #print(file_name + '  ' + str(total_frame))
     divid_no = 1
     
-    if total_frame > frame_max:
+    if total_frame > int(frame_max):
         total_frame_int = int(total_frame)
-        if total_frame_int % frame_max == 0:
-            divid_no = int(total_frame / frame_max)
+        if total_frame_int % int(frame_max) == 0:
+            divid_no = int(total_frame / int(frame_max))
         else:
-            divid_no = int(total_frame / frame_max) + 1
+            divid_no = int(total_frame / int(frame_max)) + 1
         
     batch_no = 0
     batch_frames = []
@@ -156,13 +189,13 @@ def input_video_data(file_name):
             slice_no = int(random.random()*divid_no)
             passby = 0
             if slice_no != divid_no - 1:
-                while video.isOpened and passby < frame_max * slice_no:
+                while video.isOpened and passby < int(frame_max) * slice_no:
                     passby += 1
                     success, image = video.read()
                     if success == False:
                         break
             else:
-                while video.isOpened and passby < total_frame - frame_max:
+                while video.isOpened and passby < total_frame - int(frame_max):
                     passby += 1
                     success, image = video.read()
                     if success == False:
@@ -197,7 +230,7 @@ def input_video_data(file_name):
         batch_frames_flip.append(image_array_flip)
         
         counter += 1
-        if counter > frame_max:
+        if counter > int(frame_max):
             break
             
     video.release()
@@ -283,18 +316,18 @@ def input_test_video_data(file_name, batch_no=0):
     #mtcnn_detector = mtcnn.mtcnn.MTCNN()
     divid_no = 1
 
-    if total_frame > frame_max:
+    if total_frame > int(frame_max):
         total_frame_int = int(total_frame)
-        if total_frame_int % frame_max == 0:
-            divid_no = int(total_frame / frame_max)
+        if total_frame_int % int(frame_max) == 0:
+            divid_no = int(total_frame / int(frame_max))
         else:
-            divid_no = int(total_frame / frame_max) + 1
+            divid_no = int(total_frame / int(frame_max)) + 1
 
 
     #updates the start frame to 0,4000,8000... excluding the last batch
     passby = 0
     if batch_no != divid_no - 1:
-        while video.isOpened and passby < frame_max * batch_no:
+        while video.isOpened and passby < int(frame_max) * batch_no:
             passby += 1
             success, image = video.read()
             if success == False:
@@ -304,21 +337,21 @@ def input_test_video_data(file_name, batch_no=0):
     else:
         if batch_type==1:
             #print("1")
-            while video.isOpened and passby < total_frame - frame_max:
+            while video.isOpened and passby < total_frame - int(frame_max):
                 passby += 1
                 success, image = video.read()
                 if success == False:
                     break
-        #last batch must have >= 400 otherwise it falls back to batch_type 1
-        if batch_type==2 and total_frame - (frame_max * batch_no) >= frame_max*0.1:
+        #last batch must have >= frame_max/10 otherwise it falls back to batch_type 1
+        if batch_type==2 and total_frame - (int(frame_max) * batch_no) >= int(frame_max)*0.1:
             #print("2")
-            while video.isOpened and passby < frame_max * batch_no:
+            while video.isOpened and passby < int(frame_max) * batch_no:
                 passby += 1
                 success, image = video.read()
                 if success == False:
                     break
         else:
-            while video.isOpened and passby < total_frame - frame_max:
+            while video.isOpened and passby < total_frame - int(frame_max):
                 passby += 1
                 success, image = video.read()
                 if success == False:
@@ -339,7 +372,7 @@ def input_test_video_data(file_name, batch_no=0):
         batch_frames.append(image_array)
         
         counter += 1
-        if counter > frame_max:
+        if counter > int(frame_max):
             break
             
     video.release()
@@ -578,21 +611,46 @@ def gelu(x):
     return 0.5*x*(1+tf.tanh(np.sqrt(2/np.pi)*(x+0.044715*tf.pow(x, 3))))
 #get_custom_objects().update({'gelu': Activation(gelu)})
 
-def find_weights(path,find_string): 
-    weights_fn = []
-    weights_path = []
-    
-    for file in os.listdir(path):
-        fname, fext = os.path.splitext(file)
-        aux = 0
-        for i in range(len(find_string)):    
-            if find_string[i] in fname:aux = aux + 1
-        if fext == ".h5" and aux == len(find_string):
-            weights_path.append(os.path.join(path, file))
-            weights_fn.append(file)
+def find_h5(path,find_string,ruii):
+    '''
+        if find_string=('') it returns all .h5 files within path
+    '''
+    if ruii:
+        import PySimpleGUI as sg
+        layout = [  [sg.Input(key="ckpt_h5" ,change_submits=True), sg.FileBrowse(key="browse",initial_folder=model_path)],
+                    [sg.Button("check")]  # identify the multiline via key option]
+                ]
+        window = sg.Window("h5ckpt", layout)
+        h5_pth=''
+        h5_fn=''
+        while True:
+            event, values = window.read()
+            if event in (sg.WIN_CLOSED, 'Exit'):
+                break
+            elif event == "check":
+                h5_pth = values["ckpt_h5"]
+                
+        window.close()
+        h5_fn = os.path.basename(h5_pth)
+        return h5_fn,h5_pth
+    if not ruii:
+        h5_fn = []
+        h5_pth = []
 
-    return weights_fn, weights_path
-
+        for root, dirs, files in os.walk(path):
+            for fil in files:
+                fname, fext = os.path.splitext(fil)
+                aux = 0
+                if len(find_string) == 0:
+                    h5_pth.append(os.path.join(root, fil))
+                    h5_fn.append(fname)
+                else:
+                    for i in range(len(find_string)):    
+                        if str(find_string[i]) in fname:aux = aux + 1
+                    if fext == ".h5" and aux == len(find_string):
+                        h5_pth.append(os.path.join(root, fil))
+                        h5_fn.append(fname)
+    return h5_fn, h5_pth
 
 def form_model(ativa,optima):
     print("\nFORM_MODEL\n")
@@ -601,9 +659,8 @@ def form_model(ativa,optima):
     
     #https://www.tensorflow.org/api_docs/python/tf/keras/activations
     #https://www.tensorflow.org/api_docs/python/tf/nn/leaky_relu
-    if ativa == 'leakyrelu':
-        ativa = keras.layers.LeakyReLU()
-    print(ativa)
+    if ativa == 'leakyrelu': ativa = keras.layers.LeakyReLU()
+    if ativa == 'gelu': ativa = gelu
 
     c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
     #c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) #another way
@@ -628,15 +685,15 @@ def form_model(ativa,optima):
     soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
     
     model = keras.Model(inputs=[image_input], outputs=[soft_max])
-    model.summary()
-    
-
+    #model.summary()
+   
+   
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
     #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
     if optima=='sgd':optima = keras.optimizers.SGD(learning_rate = 0.0002)
     if optima=='adam':optima = keras.optimizers.Adam(learning_rate = 0.0002)
-    if optima=='adam_amsgrad':optima = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
-    print(optima)
+    if optima=='adamamsgrad':optima = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
+    
     METRICS = [
         keras.metrics.TruePositives(name='tp'),
         keras.metrics.FalsePositives(name='fp'),
@@ -654,22 +711,44 @@ def form_model(ativa,optima):
                     #loss_weights = class_weights,
                     #metrics=['accuracy']
                     metrics=METRICS)
+    
+    print("     OPTIMA",optima)
+    print("     ATIVA",ativa)
     return model
 
 
-def train_model(model,model_name,weights_path):
+def train_model(model,ckpet=False,ckptgui=False):
     '''
     MODEL TRAIN/VALIDATION 
     (silent mode - verbose = 0)
     '''
-    
-    if not os.path.exists(ckpt_path+'/'+time_str+model_name):
-        os.makedirs(ckpt_path+'/'+time_str+model_name)
-    #https://keras.io/api/callbacks/model_checkpoint/
-    checkpoint = ModelCheckpoint(filepath=ckpt_path+'/'+time_str+model_name+'/'+time_str+model_name+'_ckpt-{epoch:08d}.h5')
 
-    #para_file_name = '.262731_2_4_8_xdviolence_anomaly_00000010.h5'
-    #model.load_weights(para_file_name)
+    #start from ckpt .h5
+    if ckpet:
+        if ckptgui:
+            para_file_name,para_file_path = find_h5(ckpt_path,find_string=(),ruii=True)
+            para_file_name = os.path.splitext(para_file_name)[0]
+            model.load_weights(para_file_path)
+        else:
+            para_file_name, para_file_path = find_h5(ckpt_path,find_string=ckpt_info,ruii=False)
+            para_file_name, para_file_path = para_file_name[0],para_file_path[0]
+            model.load_weights(para_file_path)
+
+        print("\n\tWEIGHTS from ckpt",para_file_name)
+
+        ckpt_path_nw = ckpt_path+'/'+para_file_name
+        if not os.path.exists(ckpt_path_nw):
+            os.makedirs(ckpt_path_nw)
+        #https://keras.io/api/callbacks/model_checkpoint/
+        checkpoint = ModelCheckpoint(filepath=ckpt_path_nw+'/'+para_file_name+'-{epoch:08d}.h5')
+
+    #start from zero
+    else:
+        ckpt_path_nw = ckpt_path+'/'+time_str+model_name
+        if not os.path.exists(ckpt_path_nw):
+            os.makedirs(ckpt_path_nw)
+        #https://keras.io/api/callbacks/model_checkpoint/
+        checkpoint = ModelCheckpoint(filepath=ckpt_path_nw+'/'+time_str+model_name+'_ckpt-{epoch:08d}.h5')
 
     print("\n\nMODEL.FIT")
     history = model.fit(generate_input(), 
@@ -677,11 +756,11 @@ def train_model(model,model_name,weights_path):
                         epochs=30, 
                         verbose=1, 
                         callbacks=[checkpoint, TqdmCallback(verbose=2)])
-
+    
     model.save(model_path + time_str + model_name + '.h5')
     model.save(model_path + time_str + model_name )
     model.save_weights(weights_path + time_str + model_name + '_weights.h5')  
-
+    
     hist_df = pd.DataFrame(history.history)
     hist_csv_file = hist_path + time_str + model_name + '_history.csv'
     with open(hist_csv_file, mode = 'w') as f:
@@ -690,15 +769,25 @@ def train_model(model,model_name,weights_path):
     return model
 
 
-def test_model(model, files, rslt_path, model_weight_fn=''):
+def test_model(model,files=test_fn,load_info=()):
     print("\nTEST MODEL\n")
-    txt_fn = rslt_path+model_weight_fn+'.txt'
+
+    para_file_name, para_file_path = find_h5(weights_path,find_string=load_info,ruii=False)
+    para_file_name, para_file_path = para_file_name[0],para_file_path[0]
+    model.load_weights(para_file_path)
+    print("\tLoaded w/",para_file_name)
+
+    txt_fn = rslt_path+para_file_name+'.txt'
+    if os.path.isfile(txt_fn):
+        raise FileNotFoundError(txt_fn,"eriste")
+    else: print("\tSaving @",txt_fn,"\n")
     f = open(txt_fn, 'w')
+    
     content_str = ''
     total_frames_test = 0
     
     predict_total = [] #to output predict in vizualizer accordingly to the each batch prediction
-    predict_max = 0 #to print the max predict related to the file in test
+    predict_max = 0     #to print the max predict related to the file in test
     predict_total_max = [] #to perform the metrics
     
     start_test = time.time()
@@ -783,7 +872,68 @@ def test_model(model, files, rslt_path, model_weight_fn=''):
     return predict_total_max, predict_total
 
 # %%
-""" METRICS
+'''GLOBAL VARS'''
+time_str = str(time.time())
+print("\ntime_str=",time_str,"\n")
+
+target_height = 120
+target_width = 160
+
+#frame_max = '2000'
+#batch_type = 1  # =1 last batch has frame_max frames // =2 last batch has no repetead frames
+#ativa = 'leakyrelu'
+#optima = 'adam'
+
+##model_info=(ativa,optima,batch_type,frame_max)
+#model_name = '_'+str(ativa)+'_'+str(optima)+'_'+str(batch_type)+'_'+str(frame_max)
+
+#model = form_model(ativa,optima)
+
+
+# TOOOOOOOOO DOOOOOOO
+#set load info a global var  = model_info and if ckpt_epoch is set, ckt train is used
+
+# %%
+'''TRAIN'''
+#ckpt_info = (ativa,optima,batch_type,frame_max,'00000028')
+#model = train_model(model,ckpet=True,ckptgui=False)
+
+#model = train_model(model)
+
+#model_gelu_adamamsgrad = form_model(ativa = gelu,optima='adam_amsgrad')
+#model_gelu_adamamsgrad = train_model(model_gelu_adamamsgrad,'_3gelu_adamamsgrad_'+str(batch_type)+'_xdviolence',weights_path)
+
+
+# %%
+'''TEST'''
+#load_info = (ativa,optima,batch_type,frame_max)
+#predict_total_max, predict_total = test_model(model,load_info=load_info)
+
+
+# TEST ALL WEIGHTS
+weights_names , weights_paths = find_h5(weights_path,find_string=(''),ruii=False)
+for i in range(len(weights_paths)):
+    #print(para_file_path[i])
+    aux_load = weights_names[i].split("_")
+    if '3' in aux_load[1]:aux_load[1] = aux_load[1].strip('3')
+    if aux_load[4] == 'weights': aux_load[4] = '4000'
+    print(aux_load)
+
+    time_str = aux_load[0]
+    ativa = aux_load[1]
+    optima = aux_load[2]
+    batch_type = aux_load[3]
+    frame_max = aux_load[4]
+
+    load_info = (ativa,optima,batch_type,frame_max)
+    print(load_info)
+    
+    model = form_model(load_info[0],load_info[1])
+    predict_total_max, predict_total = test_model(model,load_info=load_info)
+
+
+# %%
+""" METRICS/RESULTS CALCULUS
     https://www.tensorflow.org/tutorials/structured_data/imbalanced_data """
 
 def plot_cm(name,labels,predictions,p=0.5):
@@ -854,43 +1004,6 @@ def get_precision_recall_f1(labels, predictions):
     
     return p_res,r_res,auprc_ap,aucroc,f1_res
 
-# %%
-''' GPU CONFIGURATION
-    https://www.tensorflow.org/guide/gpu '''
-
-def set_tf_loglevel(level):
-    if level >= logging.FATAL:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    if level >= logging.ERROR:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-    if level >= logging.WARNING:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
-    else:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
-    logging.getLogger('tensorflow').setLevel(level)
-
-set_tf_loglevel(logging.WARNING)
-tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
-#os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
-gpus = tf.config.list_physical_devices('GPU')
-
-#https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
-#if gpus:
-#    print("\nAvaiable GPU's",gpus)
-#    try:
-#        # Currently, memory growth needs to be the same across GPUs
-#        for gpu in gpus:
-#            tf.config.experimental.set_memory_growth(gpu, True)
-#        
-#        logical_gpus = tf.config.list_logical_devices('GPU')
-#        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-#    except RuntimeError as e:
-#        # Memory growth must be set before GPUs have been initialized
-#        print(e)
-
-# %%
-""" ZHEN .h5 FILES """
-
 #https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python/68385697#68385697
 def buf_count_newlines_gen(fname):
     def _make_gen(reader):
@@ -909,7 +1022,7 @@ def get_results_from_txt(rslt_path):
     
     for file in os.listdir(rslt_path):
         fname, fext = os.path.splitext(file)
-        if fext == ".txt" and file.find('xdviolence') != -1:
+        if fext == ".txt" and file.find('weights') != -1:
             res_txt_fn.append(os.path.join(rslt_path, file))
             res_model_fn.append(fname)
     
@@ -920,7 +1033,7 @@ def get_results_from_txt(rslt_path):
     res_list_full = [[() for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
     res_list_max = [[0.0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
     res_list_fn = [['' for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
-    print(np.shape(res_list_full))
+    #print(np.shape(res_list_full))
     
     n_models = len(res_txt_fn)
     for txt_i in range(n_models):
@@ -933,7 +1046,7 @@ def get_results_from_txt(rslt_path):
         #print(video_list)
         for video_j in range(len(video_list)):
             aux_line = str(video_list[video_j]).replace('[','').replace(']','').replace(' ','').split('|')
-        
+            #print(aux_line[1])
             res_list_fn[video_j][txt_i] = aux_line[0]
             res_list_max[video_j][txt_i] = float(aux_line[1])
             
@@ -958,9 +1071,44 @@ def get_results_from_txt(rslt_path):
         
     return res_list_full, res_list_max, res_list_fn, res_list_labels
 
+# %%
+'''get_results_from_txt'''
+res_list_full, res_list_max, res_list_fn, res_list_labels = get_results_from_txt(rslt_path=rslt_path)
+
+# %%
+""" GELU """
+#https://keras.io/guides/distributed_training/
+#strategy = tf.distribute.MirroredStrategy()
+#print("Number of devices: {}".format(strategy.num_replicas_in_sync))
+'''Everything that creates variables should be under the strategy scope.In general this is only model construction & `compile()` '''
+#with strategy.scope():
+#    model_gelu = form_model(ativa = 'gelu')
+#model_gelu = train_model(model_gelu,'_3gelu_xdviolence',weights_path)
+
+
+''' load model from model_save '''
+#weights_fn, weights_path = find_h5(model_path,'_3gelu_xdviolence')
+#print(weights_fn,weights_path)
+
+##load model error with activation
+#model_gelu = keras.models.load_model(weights_path[0],custom_objects={'gelu': Activation(gelu)})
+
+
+''' create model arch and loads weights '''
+#model_gelu = form_model(ativa = tf.keras.activations.gelu)
+#model_gelu = form_model(ativa = "gelu",optima='sgd')
+
+#weights_fn, weights_path = find_h5(weights_path,'_3gelu_sgd_1_xdviolence')
+#print(weights_fn,weights_path)
+
+#https://stackoverflow.com/questions/72524486/i-get-this-error-attributeerror-nonetype-object-has-no-attribute-predict
+#model_gelu.load_weights(str(weights_path[0]))
+
+# %%
+""" ZHEN .h5 FILES """
 def test_zhen_h5():
     model = form_model(ativa='relu',optima='sgd')
-    weights_fn, weights_path = find_weights(weights_path_zhen,'_2_4_8_xdviolence_model_weights')
+    weights_fn, weights_path = find_h5(weights_path,'_2_4_8_xdviolence_model_weights')
     onev_fn, y_onev_labels = test_files(onev = 10)
     
     for i in range(len(weights_fn)):
@@ -968,10 +1116,10 @@ def test_zhen_h5():
         model.load_weights(weights_path[i])
         weight_fn,weight_ext = os.path.splitext(str(weights_fn[i]))
         
-        y_test_pred, predict_total = test_model(model, onev_fn, rslt_path_zhen, model_weight_fn = weight_fn)
-        plot_cm(rslt_path_zhen+'/1V/'+weight_fn+'_CM'+str(batch_type),y_onev_labels, y_test_pred)
-        plot_roc(rslt_path_zhen+'/1V/'+weight_fn+'_ROC'+str(batch_type), y_onev_labels , y_test_pred, color=colors[0], linestyle='--')
-        plot_prc(rslt_path_zhen+'/1V/'+weight_fn+'_PRC'+str(batch_type), y_onev_labels, y_test_pred, color=colors[0])
+        y_test_pred, predict_total = test_model(model, onev_fn, rslt_path, model_weight_fn = weight_fn)
+        plot_cm(rslt_path+'/1V/'+weight_fn+'_CM'+str(batch_type),y_onev_labels, y_test_pred)
+        plot_roc(rslt_path+'/1V/'+weight_fn+'_ROC'+str(batch_type), y_onev_labels , y_test_pred, color=colors[0], linestyle='--')
+        plot_prc(rslt_path+'/1V/'+weight_fn+'_PRC'+str(batch_type), y_onev_labels, y_test_pred, color=colors[0])
         get_precision_recall_f1(y_onev_labels, y_test_pred)
         #watch_test(predict_total,onev_fn)
         
@@ -987,98 +1135,11 @@ def test_zhen_h5():
 #res_list_full,res_list_max,rest_list_fn,res_list_labels = get_results_from_txt()
 
 # %%
-""" GELU """
-#https://keras.io/guides/distributed_training/
-#strategy = tf.distribute.MirroredStrategy()
-#print("Number of devices: {}".format(strategy.num_replicas_in_sync))
-'''Everything that creates variables should be under the strategy scope.In general this is only model construction & `compile()` '''
-#with strategy.scope():
-#    model_gelu = form_model(ativa = 'gelu')
-#model_gelu = train_model(model_gelu,'_3gelu_xdviolence',weights_path_zu)
-
-
-''' load model from model_save '''
-#weights_fn, weights_path = find_weights(model_path,'_3gelu_xdviolence')
-#print(weights_fn,weights_path)
-
-##load model error with activation
-#model_gelu = keras.models.load_model(weights_path[0],custom_objects={'gelu': Activation(gelu)})
-
-
-''' create model arch and loads weights '''
-#model_gelu = form_model(ativa = tf.keras.activations.gelu)
-#model_gelu = form_model(ativa = "gelu",optima='sgd')
-
-#weights_fn, weights_path = find_weights(weights_path_zu,'_3gelu_sgd_1_xdviolence')
-#print(weights_fn,weights_path)
-
-#https://stackoverflow.com/questions/72524486/i-get-this-error-attributeerror-nonetype-object-has-no-attribute-predict
-#model_gelu.load_weights(str(weights_path[0]))
-
-# %%
-'''TRAIN DIFF MODELS'''
-
-#frame_max = 2000
-#model_relu_adam_2000 = form_model(ativa = 'relu' ,optima='adam')
-#model_relu_adam_2000 = train_model(model_relu_adam_2000,'_relu_adam_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
-
-
-#frame_max = 2000
-#model_leakyrelu_adam = form_model(ativa = 'leakyrelu' ,optima='adam')
-#model_leakyrelu_adam = train_model(model_leakyrelu_adam,'_leakyrelu_adam_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
-
-#frame_max = 1000
-#model_leakyrelu_adam = form_model(ativa = 'leakyrelu' ,optima='adam')
-#model_leakyrelu_adam = train_model(model_leakyrelu_adam,'_leakyrelu_adam_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
-
-model_relu_sgd = form_model(ativa = 'relu' ,optima='sgd')
-model_relu_sgd = train_model(model_relu_sgd,'_relu_sgd_'+str(batch_type)+'_'+str(frame_max)+'_xdviolence',weights_path_zu)
-
-
-#model_gelu_adam = form_model(ativa = gelu,optima='adam')
-#model_gelu_adam = train_model(model_gelu_adam,'_3gelu_adam_'+str(batch_type)+'_xdviolence',weights_path_zu)
-
-#model_gelu_adamamsgrad = form_model(ativa = gelu,optima='adam_amsgrad')
-#model_gelu_adamamsgrad = train_model(model_gelu_adamamsgrad,'_3gelu_adamamsgrad_'+str(batch_type)+'_xdviolence',weights_path_zu)
-
-# %%
-'''TEST DIFF MODELS'''
-#batch_type = 1
-
-#frame_max = 2000
-#weights_fn, weights_path = find_weights(weights_path_zu,('adam_1_2000',))
-#model_leakyrelu_adam_2000 = form_model(ativa = 'leakyrelu' ,optima='adam')
-
-#frame_max = 1000
-#weights_fn, weights_path = find_weights(weights_path_zu,('adam_1_1000',))
-#model_leakyrelu_adam_1000 = form_model(ativa = 'leakyrelu' ,optima='adam')
-
-#frame_max = 2000
-#weights_fn, weights_path = find_weights(weights_path_zu,('relu_adam_1_2000',))
-#model_relu_adam_2000 = form_model(ativa = 'relu' ,optima='adam')
-
-
-#weights_fn, weights_path = find_weights(weights_path_zu,('adam_1_',))
-#model_gelu_adam = form_model(ativa = gelu,optima='adam')
-
-#weights_fn, weights_path = find_weights(weights_path_zu,('adamamsgrad_1_',))
-#model_gelu_adamamsgrad = form_model(ativa = gelu,optima='adam_amsgrad')
-
-#weights_fn, weights_path = find_weights(weights_path_zu,('sgd_1_',))
-#model_gelu_sgd = form_model(ativa = gelu,optima='sgd')
-
-#predict_total_max, predict_total = test_model(model=model_relu_adam_2000,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))
-
-
-#batch_type = 2
-
-#weights_fn, weights_path = find_weights(weights_path_zu,('adam_2_',))
-#model_gelu_adam = form_model(ativa = gelu,optima='adam')
-
-#predict_total_max, predict_total = test_model(model=model_gelu_adam,files=test_fn,rslt_path=rslt_path_zu,model_weight_fn=weights_fn[0].replace('.h5',''))
-
-# %%
-'''get_results_from_txt'''
-#res_list_full, res_list_max, res_list_fn, res_list_labels = get_results_from_txt(rslt_path=rslt_path_zu)
+def rename():
+    for root, dirs, files in os.walk(weights_path):
+        for fil in files:
+            new_fil=fil.replace('xdviolence_','')
+            print(fil,new_fil,os.path.join(root,fil))
+            #os.rename(os.path.join(root,fil),os.path.join(root,new_fil))
 
 

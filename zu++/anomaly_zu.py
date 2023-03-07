@@ -925,12 +925,13 @@ target_width = 160
 
 # TEST ALL WEIGHTS
 weights_names , weights_paths = find_h5(weights_path,find_string=(''),ruii=False)
+for j in range(len(weights_names)): print(weights_names[j])
 for i in range(len(weights_paths)):
     #print(para_file_path[i])
     aux_load = weights_names[i].split("_")
     if '3' in aux_load[1]:aux_load[1] = aux_load[1].strip('3')
     if aux_load[4] == 'weights': aux_load[4] = '4000'
-    print(aux_load)
+    #print(aux_load)
 
     time_str = aux_load[0]
     ativa = aux_load[1]

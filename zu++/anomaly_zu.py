@@ -376,10 +376,16 @@ def input_test_video_data(file_name, batch_no=0):
             break
             
     video.release()
+    
+    #batch_frames_tensor = tf.convert_to_tensor(batch_frames)
+    ##print("\tshap tensor",tf.shape( tf.expand_dims(batch_frames_tensor,0) ) )
+    #print("\t-batch",batch_no,"[",passby,", ... ] ", batch_frames_tensor.get_shape().as_list() )    
+
     batch_frames = np.array(batch_frames)
-    
+    #print("\tshap NP ARRAY",np.shape( np.expand_dims(batch_frames,0) ))
     print("\t-batch",batch_no,"[",passby,", ... ] ",batch_frames.shape)    
-    
+
+    #return tf.expand_dims(batch_frames_tensor,0), batch_imgs, divid_no, total_frame, passby, fps
     return np.expand_dims(batch_frames,0), batch_imgs, divid_no, total_frame, passby, fps
 
 def watch_test(predict_total,test_files):
@@ -769,6 +775,10 @@ def train_model(model,ckpet=False,ckptgui=False):
     return model
 
 
+#@tf.function
+#def predict(model,input):
+#    return model.predict(input)#.eval()[0][0]
+
 def test_model(model,files=test_fn,load_info=()):
     print("\nTEST MODEL\n")
 
@@ -804,6 +814,8 @@ def test_model(model,files=test_fn,load_info=()):
             #prediction on frist batch
             start_predict1 = time.time()
             predict_aux = model.predict(batch_frames)[0][0]
+            #predict_aux = predict(model,batch_frames) #using tf.function
+            #predict_aux = model(batch_frames,training=False)[0][0]
             end_predict1 = time.time()
             time_predict = end_predict1-start_predict1
             
@@ -822,6 +834,7 @@ def test_model(model,files=test_fn,load_info=()):
                 #nésimo batch prediction
                 start_predict2 = time.time()
                 predict_aux = model.predict(batch_frames)[0][0]
+                #predict_aux = predict(model,batch_frames) #using tf.function
                 end_predict2 = time.time()
                 time_predict += end_predict2 - start_predict2
 
@@ -837,7 +850,7 @@ def test_model(model,files=test_fn,load_info=()):
             
             predict_total.append(predict_result)
             predict_total_max.append(predict_max)
-            print(predict_total[i])
+            print("\n\t",predict_total[i])
             
             if 'label_A' in files[i]:
                 print('\nNORM',str(i),':',f'{total_frames:.0f}',"@",f'{fps:.0f}',"fps =",f'{video_time:.2f}',"sec\n\t",
@@ -931,6 +944,9 @@ for i in range(len(weights_paths)):
     model = form_model(load_info[0],load_info[1])
     predict_total_max, predict_total = test_model(model,load_info=load_info)
 
+
+# %% [markdown]
+# ARNING:tensorflow:6 out of the last 6 calls to <function Model.make_predict_function.<locals>.predict_function at 0x7fda9c3d5268> triggered tf.function retracing. Tracing is expensive and the excessive number of tracings is likely due to passing python objects instead of tensors. Also, tf.function has experimental_relax_shapes=True option that relaxes argument shapes that can avoid unnecessary retracing. Please refer to https://www.tensorflow.org/tutorials/customization/performance#python_or_tensor_args and https://www.tensorflow.org/api_docs/python/tf/function for more details.
 
 # %%
 """ METRICS/RESULTS CALCULUS

@@ -69,7 +69,7 @@ def set_tf_loglevel(level):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     logging.getLogger('tensorflow').setLevel(level)
 
-set_tf_loglevel(logging.WARNING)
+set_tf_loglevel(logging.ERROR)
 tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
 os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
 gpus = tf.config.list_physical_devices('GPU')
@@ -619,7 +619,8 @@ def gelu(x):
 
 def find_h5(path,find_string,ruii):
     '''
-        if find_string=('') it returns all .h5 files within path
+        if find_string=('') it returns all .h5 files in path descarding subdiretories
+        if find_string=('str1','str2',..) ir returns .h5 files with all str in name 
     '''
     if ruii:
         import PySimpleGUI as sg
@@ -642,20 +643,24 @@ def find_h5(path,find_string,ruii):
     if not ruii:
         h5_fn = []
         h5_pth = []
-
         for root, dirs, files in os.walk(path):
-            for fil in files:
-                fname, fext = os.path.splitext(fil)
-                aux = 0
-                if len(find_string) == 0:
-                    h5_pth.append(os.path.join(root, fil))
-                    h5_fn.append(fname)
-                else:
+            if len(find_string) == 0:
+                for fil in files:
+                    fname, fext = os.path.splitext(fil)
+                    if fext == ".h5":
+                        h5_pth.append(os.path.join(root, fil))
+                        h5_fn.append(fname)
+                break 
+            else:
+                for fil in files:
+                    fname, fext = os.path.splitext(fil)
+                    aux = 0
                     for i in range(len(find_string)):    
                         if str(find_string[i]) in fname:aux = aux + 1
                     if fext == ".h5" and aux == len(find_string):
                         h5_pth.append(os.path.join(root, fil))
                         h5_fn.append(fname)
+                break
     return h5_fn, h5_pth
 
 def form_model(ativa,optima):
@@ -780,7 +785,7 @@ def train_model(model,ckpet=False,ckptgui=False):
 #    return model.predict(input)#.eval()[0][0]
 
 def test_model(model,files=test_fn,load_info=()):
-    print("\nTEST MODEL\n")
+    print("\n\nTEST MODEL\n")
 
     para_file_name, para_file_path = find_h5(weights_path,find_string=load_info,ruii=False)
     para_file_name, para_file_path = para_file_name[0],para_file_path[0]
@@ -925,11 +930,11 @@ target_width = 160
 
 # TEST ALL WEIGHTS
 weights_names , weights_paths = find_h5(weights_path,find_string=(''),ruii=False)
-for j in range(len(weights_names)): print(weights_names[j])
+for j in range(len(weights_names)):print(weights_names[j])
 for i in range(len(weights_paths)):
     #print(para_file_path[i])
     aux_load = weights_names[i].split("_")
-    if '3' in aux_load[1]:aux_load[1] = aux_load[1].strip('3')
+    if '3' in aux_load[1]:aux_load[1] = aux_load[1].strip('3') #for 3gelu
     if aux_load[4] == 'weights': aux_load[4] = '4000'
     #print(aux_load)
 
@@ -939,15 +944,11 @@ for i in range(len(weights_paths)):
     batch_type = aux_load[3]
     frame_max = aux_load[4]
 
-    load_info = (ativa,optima,batch_type,frame_max)
-    print(load_info)
+    load_info = (ativa,optima,'_'+str(batch_type)+'_',frame_max)
+    print('\n',load_info)
     
     model = form_model(load_info[0],load_info[1])
     predict_total_max, predict_total = test_model(model,load_info=load_info)
-
-
-# %% [markdown]
-# ARNING:tensorflow:6 out of the last 6 calls to <function Model.make_predict_function.<locals>.predict_function at 0x7fda9c3d5268> triggered tf.function retracing. Tracing is expensive and the excessive number of tracings is likely due to passing python objects instead of tensors. Also, tf.function has experimental_relax_shapes=True option that relaxes argument shapes that can avoid unnecessary retracing. Please refer to https://www.tensorflow.org/tutorials/customization/performance#python_or_tensor_args and https://www.tensorflow.org/api_docs/python/tf/function for more details.
 
 # %%
 """ METRICS/RESULTS CALCULUS
@@ -1152,6 +1153,7 @@ def test_zhen_h5():
 #res_list_full,res_list_max,rest_list_fn,res_list_labels = get_results_from_txt()
 
 # %%
+""" auxilriti """
 def rename():
     for root, dirs, files in os.walk(weights_path):
         for fil in files:

@@ -17,3 +17,7 @@ CONDA
             if [[ ${env:0:1} == "#" ]] ; then continue; fi;
             conda env export -n $env > ${env}.yml
         done
+    
+    CUDA: nvcc --version  |  conda list cudatoolkit  |  cat /usr/local/cuda/version.txt
+    cuDNN: conda list cudnn
+    TF: conda list tensorflow  (https://www.tensorflow.org/install/source)

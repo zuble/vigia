@@ -3951,3 +3951,5 @@
 3817 frames | 159 secs | A.Beautiful.Mind.2001__#00-42-52_00-45-31_label_A
 5040 frames | 210 secs | Saving.Private.Ryan.1998__#02-39-02_02-42-32_label_A
 3674 frames | 153 secs | v=AqFWYZsOgWY__#00-45-00_00-47-33_label_A
+
+mean of frames per video: 4142.256261067544

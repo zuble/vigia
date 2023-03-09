@@ -1,0 +1,4 @@
+name: tf
+channels:
+  - defaults
+prefix: /home/jtstudents/anaconda3/envs/tf

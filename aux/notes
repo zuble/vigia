@@ -1,0 +1,19 @@
+GIT 
+
+    Remove directory from remote repository after adding them to .gitignore
+
+        git rm --cached `git ls-files -i -c --exclude-from=.gitignore` 
+        git commit -m 'Removed all files that are in the .gitignore' 
+        git push origin main
+
+-----------------------------------------------------------------------------------
+
+CONDA
+
+    Export all avaiable envs to current path
+
+        #COPYPASTA to terminal
+        for env in $(conda env list | cut -d" " -f1); do 
+            if [[ ${env:0:1} == "#" ]] ; then continue; fi;
+            conda env export -n $env > ${env}.yml
+        done

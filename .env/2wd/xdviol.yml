@@ -371,5 +371,5 @@ dependencies:
   - zlib=1.2.13=h166bdaf_4
   - zstd=1.5.2=h6239696_4
   - pip:
-    - pip==22.3
+      - pip==22.3
 prefix: /home/jtstudents/anaconda3/envs/xdviol

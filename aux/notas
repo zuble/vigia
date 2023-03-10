@@ -18,6 +18,43 @@ CONDA
             conda env export -n $env > ${env}.yml
         done
     
-    CUDA: nvcc --version  |  conda list cudatoolkit  |  cat /usr/local/cuda/version.txt
-    cuDNN: conda list cudnn
-    TF: conda list tensorflow  (https://www.tensorflow.org/install/source)
+
+    Version check
+
+        conda list | grep -E 'cudnn|cudatoolkit|tensorflow'
+        CUDA: nvcc --version  | cat /usr/local/cuda/version.txt
+        (https://www.tensorflow.org/install/source)
+    
+
+    Packages Install tf-gpu-zu (https://anaconda.org/)
+
+        conda create -n tf-gpu-zu tensorflow-gpu=2.2.0
+        conda install -c conda-forge opencv
+        conda install -c conda-forge pysimplegui
+        conda install -c anaconda pandas 
+        conda install keras
+        conda install -c anaconda seaborn
+        conda install -c conda-forge tqdm
+        conda install -c anaconda scikit-learn 
+
+-----------------------------------------------------------------------------------
+
+OS 
+
+    Check if path is writable
+
+        if [ -w "/path" ]; then echo "WRITABLE"; else echo "NOT WRITABLE"; fi
+
+
+    Aliases
+
+        alias catghpw='cat /raid/DATASETS/.zuble/.g'
+        alias cdvigia='cd /raid/DATASETS/.zuble/vigia'
+        alias condatfgpuzu='conda activate tf-gpu-zu'
+        alias condazhengpu='conda activate zhen_gpu'
+        alias e='exit'
+        alias c='clear'
+        alias gitvigiaup='cdvigia && git add . && git commit -m '\''up'\'' && catghpw && git push'
+        alias nvidia='watch -n 0.5 nvidia-smi'
+
+-----------------------------------------------------------------------------------

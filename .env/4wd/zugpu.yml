@@ -1,4 +1,4 @@
-name: tf-gpu-zu
+name: zugpu
 channels:
   - anaconda
   - conda-forge
@@ -245,4 +245,4 @@ dependencies:
   - zipp=3.11.0=py38h06a4308_0
   - zlib=1.2.13=h5eee18b_0
   - zstd=1.5.0=ha95c52a_0
-prefix: /home/jtstudents/anaconda3/envs/tf-gpu-zu
+prefix: /home/jtstudents/anaconda3/envs/zugpu

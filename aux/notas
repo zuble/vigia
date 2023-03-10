@@ -17,7 +17,8 @@ CONDA
             if [[ ${env:0:1} == "#" ]] ; then continue; fi;
             conda env export -n $env > ${env}.yml
         done
-    
+
+        conda env export -n zugpu > zugpu.yml
 
     Version check
 
@@ -35,7 +36,8 @@ CONDA
         conda install keras
         conda install -c anaconda seaborn
         conda install -c conda-forge tqdm
-        conda install -c anaconda scikit-learn 
+        conda install -c anaconda scikit-learn
+        conda install -c conda-forge neptune-client
 
 -----------------------------------------------------------------------------------
 
@@ -50,7 +52,7 @@ OS
 
         alias catghpw='cat /raid/DATASETS/.zuble/.g'
         alias cdvigia='cd /raid/DATASETS/.zuble/vigia'
-        alias condatfgpuzu='conda activate tf-gpu-zu'
+        alias condazugpu='conda activate zugpu'
         alias condazhengpu='conda activate zhen_gpu'
         alias e='exit'
         alias c='clear'

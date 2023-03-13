@@ -1,0 +1,12 @@
+{"obj": {"type": "AssignString", "path": ["sys", "name"], "value": "Untitled"}, "version": 1}
+{"obj": {"type": "AssignString", "path": ["sys", "description"], "value": ""}, "version": 2}
+{"obj": {"type": "AssignString", "path": ["monitoring", "d5cec2ea", "hostname"], "value": "DGX"}, "version": 3}
+{"obj": {"type": "AssignString", "path": ["sys", "hostname"], "value": "DGX"}, "version": 4}
+{"obj": {"type": "AssignString", "path": ["monitoring", "d5cec2ea", "pid"], "value": "21770"}, "version": 5}
+{"obj": {"type": "AssignString", "path": ["monitoring", "d5cec2ea", "tid"], "value": "140526880657536"}, "version": 6}
+{"obj": {"type": "AssignBool", "path": ["sys", "failed"], "value": false}, "version": 7}
+{"obj": {"type": "LogStrings", "path": ["train", "model", "info", "ativa"], "values": [{"value": "leakyrelu", "step": null, "ts": 1678742568.3965402}]}, "version": 8}
+{"obj": {"type": "LogStrings", "path": ["train", "model", "info", "optima"], "values": [{"value": "adam", "step": null, "ts": 1678742568.3980982}]}, "version": 9}
+{"obj": {"type": "LogFloats", "path": ["train", "model", "info", "batch_type"], "values": [{"value": 1.0, "step": null, "ts": 1678742568.3984475}]}, "version": 10}
+{"obj": {"type": "LogStrings", "path": ["train", "model", "info", "frame_max"], "values": [{"value": "2000", "step": null, "ts": 1678742568.3987272}]}, "version": 11}
+{"obj": {"type": "LogStrings", "path": ["train", "model", "info", "ckpt_start"], "values": [{"value": "00000028", "step": null, "ts": 1678742568.3989656}]}, "version": 12}

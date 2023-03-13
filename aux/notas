@@ -29,16 +29,24 @@ CONDA
 
     Packages Install tf-gpu-zu (https://anaconda.org/)
 
-        conda create -n tf-gpu-zu tensorflow-gpu=2.2.0
-        conda install -c conda-forge opencv
-        conda install -c conda-forge pysimplegui
-        conda install -c anaconda pandas 
-        conda install keras
-        conda install -c anaconda seaborn
-        conda install -c conda-forge tqdm
-        conda install -c anaconda scikit-learn
-        conda install -c conda-forge neptune-client
+        conda create -n tf-gpu-zu2 
+        conda install tensorflow-gpu=2.2.0 keras neptune-client -c conda-forge #-> python 3.8.16
+        conda install -c conda-forge opencv pysimplegui tqdm 
+        conda install numpy=1.23.4
+        conda install -c anaconda scikit-learn seaborn #pandas 
+        #conda install keras
+        #conda install -c conda-forge neptune-client
 
+        numpy > 1.20.3 error with tensorflow
+
+        neptune error : 
+            this version of pandas is incompatible with numpy < 1.20.3
+            your numpy version is 1.19.5.
+            Please upgrade numpy to >= 1.20.3 to use this pandas versio
+
+
+            conda search --info pandas | grep -E '(^version|numpy)'
+            error with numpy 1.19.5 & pandas 1.5.2 / 1.5.1 / 
 -----------------------------------------------------------------------------------
 
 OS 
@@ -60,3 +68,9 @@ OS
         alias nvidia='watch -n 0.5 nvidia-smi'
 
 -----------------------------------------------------------------------------------
+
+NEPTUNE 
+
+    Delete log data
+        project = neptune.init_project(project="vigia/base", api_token=nept)
+        del project["dataset"]

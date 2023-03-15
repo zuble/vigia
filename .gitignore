@@ -3,4 +3,5 @@ dog-cat/dogs-vs-cats/
 zu++/model/ckpt/
 zu++/model/model/
 *.out
+z++/.neptune
 

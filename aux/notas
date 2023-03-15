@@ -26,6 +26,7 @@ CONDA
         CUDA: nvcc --version  | cat /usr/local/cuda/version.txt
         (https://www.tensorflow.org/install/source)
     
+    Revert
 
     Packages Install tf-gpu-zu (https://anaconda.org/)
 

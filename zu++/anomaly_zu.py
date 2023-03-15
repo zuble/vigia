@@ -6,24 +6,26 @@ import PySimpleGUI as sg
 from pathlib import Path
 #import mtcnn
 
-import pandas as pd
+#import pandas as pd
 import tensorflow as tf
-print(tf.version.VERSION)
+print("tf",tf.version.VERSION)
+#os.system("cat /usr/local/cuda/version.txt")
+#os.system("nvcc --version\n")
+os.system("conda list | grep -E 'tensorflow|cudnn|cudatoolkit|numpy'")
 
 from tensorflow import keras
 from keras import backend as K
 #from keras import models, layers, backend as K
 #from keras.layers import Activation
-from keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint
 #from tensorflow.keras.utils import get_custom_objects
 #from keras.utils.generic_utils import get_custom_objects
 from tqdm.keras import TqdmCallback
 
-from IPython import display
-import seaborn as sns
-import matplotlib.pyplot as plt
-import sklearn
-from sklearn.metrics import confusion_matrix
+import neptune
+#from neptune.integrations.tensorflow_keras import NeptuneCallback
+
+import auxua
 
 # %%
 """ PATH VAR """
@@ -39,7 +41,7 @@ if ssh4wd:
 else:
     base_vigia_dir = "/media/jtstudents/HDD/.zuble/vigia"
 
-    server_trainame_folder = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
+    #server_trainame_folder = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
     server_trainame_folder = '/media/jtstudents/HDD/.zuble/xdviol/train'
     server_testname_folder = '/media/jtstudents/HDD/.zuble/xdviol/test'
     
@@ -58,6 +60,23 @@ else:
 ''' GPU CONFIGURATION
     https://www.tensorflow.org/guide/gpu '''
 
+#https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
+
+def set_memory_growth():
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        print("\nAvaiable GPU's",gpus)
+        try:
+            # Currently, memory growth needs to be the same across GPUs
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+
 def set_tf_loglevel(level):
     if level >= logging.FATAL:
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -71,46 +90,53 @@ def set_tf_loglevel(level):
 
 set_tf_loglevel(logging.ERROR)
 tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
-gpus = tf.config.list_physical_devices('GPU')
 
-#https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
-#if gpus:
-#    print("\nAvaiable GPU's",gpus)
-#    try:
-#        # Currently, memory growth needs to be the same across GPUs
-#        for gpu in gpus:
-#            tf.config.experimental.set_memory_growth(gpu, True)
-#        
-#        logical_gpus = tf.config.list_logical_devices('GPU')
-#        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-#    except RuntimeError as e:
-#        # Memory growth must be set before GPUs have been initialized
-#        print(e)
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
+gpus = tf.config.list_physical_devices('GPU')
+print("Num GPUs Available: ", len(gpus));
+for i in range(len(gpus)) :print(str(gpus[i]))
+
+# %%
+''' NEPTUNE 
+    https://docs.neptune.ai/integrations/keras/
+'''
+
+with open('/raid/DATASETS/.zuble/.nept', 'r') as file:nept = file.read()
+run = neptune.init_run( api_token=nept, project="vigia/base")
+project = neptune.init_project(project="vigia/base", api_token=nept)
 
 # %%
 """ TEST/TRAIN FILES """
 def test_files(onev = 0):
     """
-    GENERATE LIST of TEST FILES
+    GENERATE LIST of train FILES
     """
     test_fn, test_normal_fn, test_abnormal_fn = [],[],[]
-    y_test_labels, y_test_norm, y_test_abnor = [],[],[]
+    test_labels, test_normal_labels, test_abnormal_labels = [],[],[]
     
+    
+    #makes sure that nept log are clear
+    try:del run["test/data_info"]
+    except:run["test/data_info"]
+
     #all test files
     if onev == 0:
         for root, dirs, files in os.walk(server_testname_folder):
             for file in files:
                 if file.find('.mp4') != -1:
-                    if 'label_A' not in file:
+                    if 'label_A' in file:
                         test_normal_fn.append(os.path.join(root, file))
-                        y_test_norm.append(1)
+                        test_normal_labels.append(0)
+                        run["test/data_info/test_normal"].append(str((file,0)))
                     else:
                         test_abnormal_fn.append(os.path.join(root, file))
-                        y_test_abnor.append(0)
-                        
+                        test_abnormal_labels.append(1)    
+                        run["test/data_info/test_abnormal"].append(str((file,1)))          
+
+        test_labels = test_normal_labels + test_abnormal_labels                
         test_fn = test_normal_fn + test_abnormal_fn
-        y_test_labels = y_test_norm + y_test_abnor
+        for i in range(len(test_fn)): run["test/data_info/test"].append(test_fn[i])
+        
     #only onev random files
     else :
         test_abn_fn = [x for x in os.listdir(server_testname_folder) if 'label_A' not in x]
@@ -121,47 +147,90 @@ def test_files(onev = 0):
             ap = random.choice(test_abn_fn) 
             if ap not in test_fn: 
                 test_fn.append(server_testname_folder+"/"+ap)
-                y_test_labels.append(1)
+                test_labels.append(1)
                 if len(test_fn) == onev_abnor: 
                     break 
         while True: 
             ap = random.choice(test_nor_fn) 
             if ap not in test_fn: 
                 test_fn.append(server_testname_folder+"/"+ap)
-                y_test_labels.append(0)
+                test_labels.append(0)
                 if len(test_fn) == onev: 
                     break    
     
-    print("\ntest_fn",np.shape(test_fn),"\ntest_normal_fn",np.shape(test_normal_fn),"\ntest_abnormal_fn",np.shape(test_abnormal_fn))
-    print("\ny_test_labels",np.shape(y_test_labels),"\ny_test_norm",np.shape(y_test_norm),"\ny_test_abnor",np.shape(y_test_abnor))
     
-    return test_fn, y_test_labels
+    run["test/data_info/test_shape"] = "total_fn "+str(np.shape(test_fn)[0])+"\ntotal_labels "+str(np.shape(test_labels)[0])+"\nnormal_fn "+str(np.shape(test_normal_fn)[0])+"\nnormal_labels "+str(np.shape(test_normal_labels)[0])+"\nabnormal_fn "+str(np.shape(test_abnormal_fn)[0])+"\nabnormal_labels "+str(np.shape(test_abnormal_labels)[0])
+    
+    print("\ntest_fn",np.shape(test_fn),"\ntest_normal_fn",np.shape(test_normal_fn),"\ntest_abnormal_fn",np.shape(test_abnormal_fn))
+    print("\ntest_labels",np.shape(test_labels),"\ntest_normal_labels",np.shape(test_normal_labels),"\ntest_abnormal_labels",np.shape(test_abnormal_labels))
+    print('\n-------------------')
+    return test_fn , test_normal_fn , test_abnormal_fn , test_labels 
 
 def train_files():
     """
     GENERATING LIST of TRAIN FILES
     """
-    train_fn = []
-    
+    train_fn, train_normal_fn, train_abnormal_fn = [],[],[]
+    train_labels, train_normal_labels, train_abnormal_labels = [],[],[]
+
+    #makes sure that neptlog are clear
+    try:del run["train/data_info"]
+    except:run["train/data_info"]
+
     for root, dirs, files in os.walk(server_trainame_folder):
         for file in files:
             if file.find('.mp4') != -1:
                 train_fn.append(os.path.join(root, file))
-                
-    print("\ntrain_fn=",np.shape(train_fn))
+                run["train/data_info/train"].append(file)
+
+                if 'label_A' in file:
+                    train_normal_fn.append(os.path.join(root, file))
+                    train_normal_labels.append(0)
+                    run["train/data_info/train_normal"].append(str((file,0)))
+
+                else:
+                    train_abnormal_fn.append(os.path.join(root, file))
+                    train_abnormal_labels.append(1)
+                    run["train/data_info/train_abnormal"].append(str((file,1)))
+
+    # this way labels and video_fn are in sync , no need of labels in training tho
+    #train_fn2 = train_normal_fn + train_abnormal_fn
+    #train_labels = train_normal_labels + train_abnormal_labels 
     
-    return train_fn
+    run["train/data_info/train_shape"] = str("total "+str(np.shape(train_fn)[0])+"\nabnormal "+str(np.shape(train_abnormal_fn)[0])+"\nnormal "+str(np.shape(train_normal_fn)[0]))
 
+    print("\ntrain_fn",np.shape(train_fn),"\ntrain_normal_fn",np.shape(train_normal_fn),"\ntrain_abnormal_fn",np.shape(train_abnormal_fn))
+    #print("\ny_train_labels",np.shape(y_train_labels),"\ny_train_norm",np.shape(y_train_norm),"\ny_train_abnor",np.shape(y_train_abnor))
 
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    return train_fn , train_abnormal_fn , train_normal_fn
 
-test_fn, y_test_labels = test_files()
-train_fn = train_files()
+def nept_load_dataset():
+    
+    #run["dataset/train"].track_files(server_trainame_folder,wait=True)
+    
+    
+    del project["dataset"]
+    
+    for i in range(len(train_normal_fn)): project["dataset/train_normal/"+os.path.basename(train_normal_fn[i])].upload(train_normal_fn[i])
+    for i in range(len(train_abnormal_fn)): project["dataset/train_abnormal/"+os.path.basename(train_normal_fn[i])].upload(train_abnormal_fn[i])
+    
+    for i in range(len(test_normal_fn)): project["dataset/test_normal/"+os.path.basename(train_normal_fn[i])].upload(test_normal_fn[i])
+    for i in range(len(test_abnormal_fn)): project["dataset/test_abnormal/"+os.path.basename(train_normal_fn[i])].upload(test_abnormal_fn[i])
+    
+
+test_fn , test_abnormal_fn , test_normal_fn , test_labels = test_files()
+train_fn , train_abnormal_fn, train_normal_fn = train_files()
 
 update_index = range(0, len(train_fn))
 
+
+#nept_load_dataset()
+
 # %%
 """ INPUT DATA"""
+
+in_height = 120; in_width = 160
+
 def input_video_data(file_name):
     print("\n\nINPUT_VIDEO_DATA\n")
     #file_name = 'C:\\Bosch\\Anomaly\\training\\videos\\13_007.avi'
@@ -172,6 +241,7 @@ def input_video_data(file_name):
     #print(file_name + '  ' + str(total_frame))
     divid_no = 1
     
+    # define the nmbers of batchs to divid atual video (divid_no)
     if total_frame > int(frame_max):
         total_frame_int = int(total_frame)
         if total_frame_int % int(frame_max) == 0:
@@ -220,7 +290,7 @@ def input_video_data(file_name):
             cv2.rectangle(image,(x,y), (x+w,y+h), (255,255,0), 2)
             cv2.putText(image, str(face['confidence'])[:4], (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (36,255,12), 1)
         '''
-        image = cv2.resize(image, (target_width, target_height))
+        image = cv2.resize(image, (in_width, in_height))
         image_flip = cv2.flip(image, 1)
         
         image_array = np.array(image)/255.0
@@ -252,7 +322,7 @@ def generate_input():
             
         #index = 0
         batch_frames, batch_frames_flip, total_frames = input_video_data(train_fn[index])
-        print("\ntrain_fn[",index,"]=",train_fn[index],"\ntotal_frames=",total_frames,"\nbatch_frames.shape=",batch_frames.shape)
+        print("\n\ttrain_fn[",index,"]=",train_fn[index],"\ntotal_frames=",total_frames,"\nbatch_frames.shape=",batch_frames.shape)
         #if batch_frames.ndim != 5:
         #   break
         
@@ -307,6 +377,7 @@ def generate_input():
     
     print("loop_no=",loop_no)
 
+
 def input_test_video_data(file_name, batch_no=0):
     #file_name = 'C:\\Bosch\\Anomaly\\training\\videos\\13_007.avi'
     #file_name = '/raid/DATASETS/anomaly/UCF_Crimes/Videos/Training_Normal_Videos_Anomaly/Normal_Videos308_x264.mp4'
@@ -315,7 +386,10 @@ def input_test_video_data(file_name, batch_no=0):
     fps = video.get(cv2.CAP_PROP_FPS)
     #mtcnn_detector = mtcnn.mtcnn.MTCNN()
     divid_no = 1
-
+    frame_max = params_test["frame_max"]
+    batch_type = params_test["batch_type"]
+    
+    # define the nmbers of batchs to divid atual video (divid_no)
     if total_frame > int(frame_max):
         total_frame_int = int(total_frame)
         if total_frame_int % int(frame_max) == 0:
@@ -324,7 +398,7 @@ def input_test_video_data(file_name, batch_no=0):
             divid_no = int(total_frame / int(frame_max)) + 1
 
 
-    #updates the start frame to 0,4000,8000... excluding the last batch
+    #updates the start frame to 0,frame_max*1,frame_max*2... excluding the last batch
     passby = 0
     if batch_no != divid_no - 1:
         while video.isOpened and passby < int(frame_max) * batch_no:
@@ -367,7 +441,7 @@ def input_test_video_data(file_name, batch_no=0):
             break
         batch_imgs.append(image)
         
-        image_rsz = cv2.resize(image, (target_width, target_height))
+        image_rsz = cv2.resize(image, (in_width, in_height))
         image_array = np.array(image_rsz)/255.0 #normalize
         batch_frames.append(image_array)
         
@@ -620,7 +694,7 @@ def gelu(x):
 def find_h5(path,find_string,ruii):
     '''
         if find_string=('') it returns all .h5 files in path descarding subdiretories
-        if find_string=('str1','str2',..) ir returns .h5 files with all str in name 
+        if find_string=('str1','str2',..) it returns .h5 files with all str in name 
     '''
     if ruii:
         import PySimpleGUI as sg
@@ -643,6 +717,7 @@ def find_h5(path,find_string,ruii):
     if not ruii:
         h5_fn = []
         h5_pth = []
+
         for root, dirs, files in os.walk(path):
             if len(find_string) == 0:
                 for fil in files:
@@ -654,24 +729,28 @@ def find_h5(path,find_string,ruii):
             else:
                 for fil in files:
                     fname, fext = os.path.splitext(fil)
-                    aux = 0
-                    for i in range(len(find_string)):    
-                        if str(find_string[i]) in fname:aux = aux + 1
-                    if fext == ".h5" and aux == len(find_string):
+                    if str(find_string) in fname:
                         h5_pth.append(os.path.join(root, fil))
                         h5_fn.append(fname)
-                break
+                        break          
+                    #aux = 0
+                    #for i in range(len(find_string)):    
+                    #    if str(find_string[i]) in fname:aux = aux + 1
+                    #if fext == ".h5" and aux == len(find_string):
+                    #    h5_pth.append(os.path.join(root, fil))
+                    #    h5_fn.append(fname)              
     return h5_fn, h5_pth
 
-def form_model(ativa,optima):
+def form_model(params):
     print("\nFORM_MODEL\n")
-    image_input = keras.Input(shape=(None, target_height, target_width, 3))
+    image_input = keras.Input(shape=(None, in_height, in_width, 3))
     #Freeze the batch normalization
     
     #https://www.tensorflow.org/api_docs/python/tf/keras/activations
     #https://www.tensorflow.org/api_docs/python/tf/nn/leaky_relu
-    if ativa == 'leakyrelu': ativa = keras.layers.LeakyReLU()
-    if ativa == 'gelu': ativa = gelu
+    if params["ativa"]=='leakyrelu': ativa = keras.layers.LeakyReLU()
+    if params["ativa"]=='gelu': ativa = gelu
+    if params["ativa"]=='relu': ativa = 'relu'
 
     c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
     #c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) #another way
@@ -701,9 +780,9 @@ def form_model(ativa,optima):
    
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
     #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
-    if optima=='sgd':optima = keras.optimizers.SGD(learning_rate = 0.0002)
-    if optima=='adam':optima = keras.optimizers.Adam(learning_rate = 0.0002)
-    if optima=='adamamsgrad':optima = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
+    if params["optima"]=='sgd':optima = keras.optimizers.SGD(learning_rate = 0.0002)
+    if params["optima"]=='adam':optima = keras.optimizers.Adam(learning_rate = 0.0002)
+    if params["optima"]=='adamamsgrad':optima = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
     
     METRICS = [
         keras.metrics.TruePositives(name='tp'),
@@ -723,60 +802,76 @@ def form_model(ativa,optima):
                     #metrics=['accuracy']
                     metrics=METRICS)
     
-    print("     OPTIMA",optima)
-    print("     ATIVA",ativa)
+    print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
+    print()
     return model
 
 
-def train_model(model,ckpet=False,ckptgui=False):
+def train_model(model,ckptgui=False):
     '''
     MODEL TRAIN/VALIDATION 
     (silent mode - verbose = 0)
     '''
-
+    print("TRAIN MODEL")
+    
     #start from ckpt .h5
-    if ckpet:
+    if int(params_train["ckpt_start"]):  #aux = f"{34:0>8}"; if int(aux): print(type(aux), aux)
         if ckptgui:
-            para_file_name,para_file_path = find_h5(ckpt_path,find_string=(),ruii=True)
-            para_file_name = os.path.splitext(para_file_name)[0]
-            model.load_weights(para_file_path)
+            model_h5ckpt, model_h5ckpt_path = find_h5(ckpt_path,find_string=(),ruii=True)
+            model_h5ckpt = os.path.splitext(model_h5ckpt)[0]
+            model.load_weights(model_h5ckpt_path)
         else:
-            para_file_name, para_file_path = find_h5(ckpt_path,find_string=ckpt_info,ruii=False)
-            para_file_name, para_file_path = para_file_name[0],para_file_path[0]
-            model.load_weights(para_file_path)
-
-        print("\n\tWEIGHTS from ckpt",para_file_name)
-
-        ckpt_path_nw = ckpt_path+'/'+para_file_name
+            find_string=(params_train["ativa"]+'_'+params_train["optima"]+'_'+str(params_train["batch_type"])+'_'+params_train["frame_max"]+'_'+params_train["ckpt_start"])
+            model_h5ckpt, model_h5ckpt_path = find_h5(ckpt_path,find_string,ruii=False)
+            model_h5ckpt, model_h5ckpt_path = model_h5ckpt[0],model_h5ckpt_path[0]
+            model.load_weights(model_h5ckpt_path)
+            print("\n\tWEIGHTS from ckpt",model_h5ckpt_path)
+            
+        model_name = model_h5ckpt
+        run["train/model/model_name"] = model_name
+        
+        ckpt_path_nw = ckpt_path+model_name
         if not os.path.exists(ckpt_path_nw):
             os.makedirs(ckpt_path_nw)
-        #https://keras.io/api/callbacks/model_checkpoint/
-        checkpoint = ModelCheckpoint(filepath=ckpt_path_nw+'/'+para_file_name+'-{epoch:08d}.h5')
+        checkpoint = ModelCheckpoint(filepath=ckpt_path_nw+'/'+model_name+'-{epoch:08d}.h5') #https://keras.io/api/callbacks/model_checkpoint/
+        
+        print("\n\tCKPTs at ",ckpt_path_nw)
+        run["train/model/ckpt_path"] = ckpt_path_nw
 
     #start from zero
     else:
-        ckpt_path_nw = ckpt_path+'/'+time_str+model_name
+        time_str = str(time.time()); 
+        model_name = time_str + '_'+params_train["ativa"]+'_'+params_train["optima"]+'_'+str(params_train["batch_type"])+'_'+params_train["frame_max"]
+        run["train/model/model_name"] = model_name
+
+        ckpt_path_nw = ckpt_path+model_name
         if not os.path.exists(ckpt_path_nw):
             os.makedirs(ckpt_path_nw)
-        #https://keras.io/api/callbacks/model_checkpoint/
-        checkpoint = ModelCheckpoint(filepath=ckpt_path_nw+'/'+time_str+model_name+'_ckpt-{epoch:08d}.h5')
-
-    print("\n\nMODEL.FIT")
-    history = model.fit(generate_input(), 
-                        steps_per_epoch=len(train_fn)*2, 
-                        epochs=30, 
-                        verbose=1, 
-                        callbacks=[checkpoint, TqdmCallback(verbose=2)])
-    
-    model.save(model_path + time_str + model_name + '.h5')
-    model.save(model_path + time_str + model_name )
-    model.save_weights(weights_path + time_str + model_name + '_weights.h5')  
-    
-    hist_df = pd.DataFrame(history.history)
-    hist_csv_file = hist_path + time_str + model_name + '_history.csv'
-    with open(hist_csv_file, mode = 'w') as f:
-        hist_df.to_csv(f)
+        checkpoint = ModelCheckpoint(filepath=ckpt_path_nw+'/'+model_name+'_ckpt-{epoch:08d}.h5') #https://keras.io/api/callbacks/model_checkpoint/
         
+        print("\n\tCKPTs at ",ckpt_path_nw)
+        run["train/model/ckpt_path"] = ckpt_path_nw
+        
+ 
+    print("\n\tMODEL.FIT w/ name ",model_name)
+    #neptune_callback = NeptuneCallback(run=run,log_model_diagram=True) 
+    #history = model.fit(generate_input(), 
+    #                    steps_per_epoch=len(train_fn)*2, 
+    #                    epochs=30, 
+    #                    verbose=1, 
+    #                    callbacks=[checkpoint, TqdmCallback(verbose=2),neptune_callback])
+    #
+    #model.save(model_path + model_name + '.h5')
+    #model.save(model_path + model_name )
+    #model.save_weights(weights_path + model_name + '_weights.h5')
+    #run["train/model/model_path"]=model_path+model_name
+    #run["train/model/weights_path"]=weights_path+model_name+'_weights.h5' 
+    #
+    #hist_df = pd.DataFrame(history.history)
+    #hist_csv_file = hist_path + model_name + '_history.csv'
+    #with open(hist_csv_file, mode = 'w') as f:
+    #    hist_df.to_csv(f)
+    #run["train/model/hist_csv_file"].upload(hist_csv_file)    
     return model
 
 
@@ -784,19 +879,27 @@ def train_model(model,ckpet=False,ckptgui=False):
 #def predict(model,input):
 #    return model.predict(input)#.eval()[0][0]
 
-def test_model(model,files=test_fn,load_info=()):
+def test_model(model,files=test_fn):
     print("\n\nTEST MODEL\n")
 
-    para_file_name, para_file_path = find_h5(weights_path,find_string=load_info,ruii=False)
-    para_file_name, para_file_path = para_file_name[0],para_file_path[0]
+    # weights find & model load
+    #find_string=(params_test["ativa"]+'_'+params_test["optima"]+'_'+str(params_test["batch_type"])+'_'+params_test["frame_max"])
+    #para_file_name, para_file_path = find_h5(weights_path,find_string=find_string,ruii=False)
+    #para_file_name, para_file_path = para_file_name[0],para_file_path[0]
+    para_file_path = "/raid/DATASETS/.zuble/vigia/zu++/model/weights/1677002476.5250552_relu_adam_1_2000_weights.h5"
+    para_file_name = "1677002476.5250552_relu_adam_1_2000_weights"
     model.load_weights(para_file_path)
-    print("\tLoaded w/",para_file_name)
+    print("\tWEIGHTS from w/",para_file_name)
+    run["test/model/model_name"] = para_file_name
 
-    txt_fn = rslt_path+para_file_name+'.txt'
-    if os.path.isfile(txt_fn):
-        raise FileNotFoundError(txt_fn,"eriste")
-    else: print("\tSaving @",txt_fn,"\n")
-    f = open(txt_fn, 'w')
+    # rslt txt file creation
+    txt_path = rslt_path+para_file_name+'.txt'
+    if os.path.isfile(txt_path):
+        raise FileNotFoundError(txt_path,"eriste")
+    else: 
+        print("\tSaving @",txt_path,"\n")
+        run["test/model/rslt_path"] = txt_path
+    f = open(txt_path, 'w')
     
     content_str = ''
     total_frames_test = 0
@@ -881,284 +984,71 @@ def test_model(model,files=test_fn,load_info=()):
             "\n\n********************************************************")                  
 
     #remove white spaces in file , for further easier reading
-    with open(txt_fn, 'r+') as f:
-        txt = f.read().replace(' ', '')
-        f.seek(0)
-        f.write(txt)
-        f.truncate()
+    with open(txt_path, 'r+') as f:txt=f.read().replace(' ', '');f.seek(0);f.write(txt);f.truncate()
+    run["test/model/rslt"].upload(txt_path)
     
     return predict_total_max, predict_total
 
 # %%
-'''GLOBAL VARS'''
-time_str = str(time.time())
-print("\ntime_str=",time_str,"\n")
+'''INIT TRAIN MODEL'''
 
-target_height = 120
-target_width = 160
+params_train = {
+    "ativa" : 'leakyrelu',
+    "optima" : 'adam',
+    "batch_type" : 1,   # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
+    "frame_max" : '2000',
+    "ckpt_start" : f"{28:0>8}"  #if 00000000 start from scratch, else start from ckpt with params in name
+}
+run["train/model/params"].append(params_train)
 
-#frame_max = '2000'
-#batch_type = 1  # =1 last batch has frame_max frames // =2 last batch has no repetead frames
-#ativa = 'leakyrelu'
-#optima = 'adam'
+#model = form_model(params_train)
 
-##model_info=(ativa,optima,batch_type,frame_max)
-#model_name = '_'+str(ativa)+'_'+str(optima)+'_'+str(batch_type)+'_'+str(frame_max)
-
-#model = form_model(ativa,optima)
-
-
-# TOOOOOOOOO DOOOOOOO
-#set load info a global var  = model_info and if ckpt_epoch is set, ckt train is used
 
 # %%
-'''TRAIN'''
-#ckpt_info = (ativa,optima,batch_type,frame_max,'00000028')
-#model = train_model(model,ckpet=True,ckptgui=False)
-
+""" TRAIN """
 #model = train_model(model)
 
-#model_gelu_adamamsgrad = form_model(ativa = gelu,optima='adam_amsgrad')
-#model_gelu_adamamsgrad = train_model(model_gelu_adamamsgrad,'_3gelu_adamamsgrad_'+str(batch_type)+'_xdviolence',weights_path)
+# %%
+'''INIT TEST MODEL'''
 
+params_test = {
+    "ativa" : 'relu',
+    "optima" : 'adam',
+    "batch_type" : 2, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
+    "frame_max" : '2000'
+}
+run["test/model/params"].append(params_test)
+
+model = form_model(params_test)
 
 # %%
 '''TEST'''
-#load_info = (ativa,optima,batch_type,frame_max)
-#predict_total_max, predict_total = test_model(model,load_info=load_info)
 
+predict_total_max, predict_total = test_model(model)
 
 # TEST ALL WEIGHTS
-weights_names , weights_paths = find_h5(weights_path,find_string=(''),ruii=False)
-for j in range(len(weights_names)):print(weights_names[j])
-for i in range(len(weights_paths)):
-    #print(para_file_path[i])
-    aux_load = weights_names[i].split("_")
-    if '3' in aux_load[1]:aux_load[1] = aux_load[1].strip('3') #for 3gelu
-    if aux_load[4] == 'weights': aux_load[4] = '4000'
-    #print(aux_load)
-
-    time_str = aux_load[0]
-    ativa = aux_load[1]
-    optima = aux_load[2]
-    batch_type = aux_load[3]
-    frame_max = aux_load[4]
-
-    load_info = (ativa,optima,'_'+str(batch_type)+'_',frame_max)
-    print('\n',load_info)
-    
-    model = form_model(load_info[0],load_info[1])
-    predict_total_max, predict_total = test_model(model,load_info=load_info)
-
-# %%
-""" METRICS/RESULTS CALCULUS
-    https://www.tensorflow.org/tutorials/structured_data/imbalanced_data """
-
-def plot_cm(name,labels,predictions,p=0.5):
-    '''
-    https://www.tensorflow.org/tutorials/structured_data/imbalanced_data#download_the_kaggle_credit_card_fraud_data_set
-    '''
-    predictions = np.array(predictions)
-    cm = confusion_matrix(labels, predictions > p)
-    #plt.clf()
-    plt.figure(figsize=(5,5))
-    sns.heatmap(cm, annot=True, fmt="d")
-    plt.title('Confusion matrix @{:.2f}'.format(p))
-    plt.ylabel('Actual label')
-    plt.xlabel('Predicted label')
-    plt.savefig(name+'.png',facecolor='white', transparent=False)
-    plt.show()
-
-def plot_roc(name, labels, predictions, **kwargs):
-    fp, tp, _ = sklearn.metrics.roc_curve(labels, predictions)
-    
-    plt.plot(100*fp, 100*tp, label=name, linewidth=2, **kwargs)
-    plt.xlabel('False positives [%]')
-    plt.ylabel('True positives [%]')
-    plt.xlim([-0.5,80])
-    plt.ylim([20,100.5])
-    plt.grid(True)
-    ax = plt.gca()
-    ax.set_aspect('equal')
-    plt.savefig(name+'.png',facecolor='white', transparent=False)
-    plt.show()
-    
-def plot_prc(name, labels, predictions, **kwargs):
-    precision, recall, _ = sklearn.metrics.precision_recall_curve(labels, predictions)
-    #plt.clf()
-    plt.plot(precision, recall, label=name, linewidth=2, **kwargs)
-    plt.xlabel('Precision')
-    plt.ylabel('Recall')
-    plt.xlim([-0.5,100.5])
-    plt.ylim([-0.5,100.5])
-    plt.grid(True)
-    ax = plt.gca()
-    ax.set_aspect('equal')
-    plt.savefig(name+'.png',facecolor='white', transparent=False)
-    plt.show()
-
-def get_precision_recall_f1(labels, predictions):
-    p = tf.keras.metrics.Precision(thresholds = 0.5)
-    p.update_state(labels, predictions)
-    p_res = p.result().numpy()
-    print("\tPRECISION (%% of True Positive out of all Positive predicted) ",p_res)
-    
-    r = tf.keras.metrics.Recall(thresholds=0.5)
-    r.update_state(labels, predictions)
-    r_res = r.result().numpy()
-    print("\tRECALL (%% of True Positive out of all actual anomalies) ",r_res)
-    
-    #https://glassboxmedicine.com/2019/03/02/measuring-performance-auprc/
-    auprc_ap = sklearn.metrics.average_precision_score(labels, predictions)
-    aucroc = sklearn.metrics.roc_auc_score(labels, predictions)
-    print("\tAP ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
-    
-    #https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
-    #import tensorflow_addons as tfa
-    #f1 = tfa.metrics.F1Score(num_classes=2, threshold=0.5)
-    #f1.update_state(labels, predictions)
-    f1_res = 2*((p_res*r_res)/(p_res+r_res+K.epsilon()))
-    print("\tF1_SCORE (harmonic mean of precision and recall) ",f1_res)
-    
-    return p_res,r_res,auprc_ap,aucroc,f1_res
-
-#https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python/68385697#68385697
-def buf_count_newlines_gen(fname):
-    def _make_gen(reader):
-        while True:
-            b = reader(2 ** 16)
-            if not b: break
-            yield b
-
-    with open(fname, "rb") as f:
-        count = sum(buf.count(b"\n") for buf in _make_gen(f.raw.read))
-    return count
-
-def get_results_from_txt(rslt_path):
-    res_txt_fn = []
-    res_model_fn = []
-    
-    for file in os.listdir(rslt_path):
-        fname, fext = os.path.splitext(file)
-        if fext == ".txt" and file.find('weights') != -1:
-            res_txt_fn.append(os.path.join(rslt_path, file))
-            res_model_fn.append(fname)
-    
-    res_txt_fn = sorted(res_txt_fn)
-    res_model_fn = sorted(res_model_fn)
-    
-    i=0
-    res_list_full = [[() for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
-    res_list_max = [[0.0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
-    res_list_fn = [['' for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
-    #print(np.shape(res_list_full))
-    
-    n_models = len(res_txt_fn)
-    for txt_i in range(n_models):
-        print('\nOPENING',res_txt_fn[txt_i])
-        txt = open(res_txt_fn[txt_i],'r')
-        txt_data = txt.read()
-        txt.close()
-
-        video_list = [line.split() for line in txt_data.split("\n") if line]
-        #print(video_list)
-        for video_j in range(len(video_list)):
-            aux_line = str(video_list[video_j]).replace('[','').replace(']','').replace(' ','').split('|')
-            #print(aux_line[1])
-            res_list_fn[video_j][txt_i] = aux_line[0]
-            res_list_max[video_j][txt_i] = float(aux_line[1])
-            
-            aux2_line = aux_line[2].replace(' ','').replace("'","").replace('(','').replace(')','').split(',')
-            #print(aux2_line)
-            res_list_full[video_j][txt_i] = aux2_line
-    
-    
-    res_list_labels = [[0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
-    n_videos = np.shape(res_list_fn)[0]
-    for txt_i in range(n_models):
-        for video_j in range(n_videos):
-            if 'label_A' not in res_list_fn[video_j][txt_i]:
-                res_list_labels[video_j][txt_i] = 1
-        
-    for i in range(len(res_txt_fn)):
-        print("\nresults for",res_model_fn[i])
-            
-        res_col = [col[i] for col in res_list_max]
-        labels_col = [col[i] for col in res_list_labels]
-        get_precision_recall_f1(labels_col,res_col)
-        
-    return res_list_full, res_list_max, res_list_fn, res_list_labels
+#weights_names , weights_paths = find_h5(weights_path,find_string=(''),ruii=False)
+#for j in range(len(weights_names)):print(weights_names[j])
+#for i in range(len(weights_paths)):
+#    #print(para_file_path[i])
+#    aux_load = weights_names[i].split("_")
+#    if '3' in aux_load[1]:aux_load[1] = aux_load[1].strip('3') #for 3gelu
+#    if aux_load[4] == 'weights': aux_load[4] = '4000'
+#    #print(aux_load)
+#
+#    time_str = aux_load[0]
+#    ativa = aux_load[1]
+#    optima = aux_load[2]
+#    batch_type = aux_load[3]
+#    frame_max = aux_load[4]
+#
+#    load_info = (ativa,optima,'_'+str(batch_type)+'_',frame_max)
+#    print('\n',load_info)
+#    
+#    model = form_model(load_info[0],load_info[1])
+#    predict_total_max, predict_total = test_model(model,load_info=load_info)
 
 # %%
 '''get_results_from_txt'''
-res_list_full, res_list_max, res_list_fn, res_list_labels = get_results_from_txt(rslt_path=rslt_path)
-
-# %%
-""" GELU """
-#https://keras.io/guides/distributed_training/
-#strategy = tf.distribute.MirroredStrategy()
-#print("Number of devices: {}".format(strategy.num_replicas_in_sync))
-'''Everything that creates variables should be under the strategy scope.In general this is only model construction & `compile()` '''
-#with strategy.scope():
-#    model_gelu = form_model(ativa = 'gelu')
-#model_gelu = train_model(model_gelu,'_3gelu_xdviolence',weights_path)
-
-
-''' load model from model_save '''
-#weights_fn, weights_path = find_h5(model_path,'_3gelu_xdviolence')
-#print(weights_fn,weights_path)
-
-##load model error with activation
-#model_gelu = keras.models.load_model(weights_path[0],custom_objects={'gelu': Activation(gelu)})
-
-
-''' create model arch and loads weights '''
-#model_gelu = form_model(ativa = tf.keras.activations.gelu)
-#model_gelu = form_model(ativa = "gelu",optima='sgd')
-
-#weights_fn, weights_path = find_h5(weights_path,'_3gelu_sgd_1_xdviolence')
-#print(weights_fn,weights_path)
-
-#https://stackoverflow.com/questions/72524486/i-get-this-error-attributeerror-nonetype-object-has-no-attribute-predict
-#model_gelu.load_weights(str(weights_path[0]))
-
-# %%
-""" ZHEN .h5 FILES """
-def test_zhen_h5():
-    model = form_model(ativa='relu',optima='sgd')
-    weights_fn, weights_path = find_h5(weights_path,'_2_4_8_xdviolence_model_weights')
-    onev_fn, y_onev_labels = test_files(onev = 10)
-    
-    for i in range(len(weights_fn)):
-        print("\n\nLoading weights from",weights_fn[i],"\n")
-        model.load_weights(weights_path[i])
-        weight_fn,weight_ext = os.path.splitext(str(weights_fn[i]))
-        
-        y_test_pred, predict_total = test_model(model, onev_fn, rslt_path, model_weight_fn = weight_fn)
-        plot_cm(rslt_path+'/1V/'+weight_fn+'_CM'+str(batch_type),y_onev_labels, y_test_pred)
-        plot_roc(rslt_path+'/1V/'+weight_fn+'_ROC'+str(batch_type), y_onev_labels , y_test_pred, color=colors[0], linestyle='--')
-        plot_prc(rslt_path+'/1V/'+weight_fn+'_PRC'+str(batch_type), y_onev_labels, y_test_pred, color=colors[0])
-        get_precision_recall_f1(y_onev_labels, y_test_pred)
-        #watch_test(predict_total,onev_fn)
-        
-    ''' 
-    =1 last batch has 4000 frames 
-    =2 last batch has no repetead frames 
-    '''
-#batch_type = 2
-#print("\n\n\tBATCH TYPE",batch_type)
-
-#test_zhen_h5()
-
-#res_list_full,res_list_max,rest_list_fn,res_list_labels = get_results_from_txt()
-
-# %%
-""" auxilriti """
-def rename():
-    for root, dirs, files in os.walk(weights_path):
-        for fil in files:
-            new_fil=fil.replace('xdviolence_','')
-            print(fil,new_fil,os.path.join(root,fil))
-            #os.rename(os.path.join(root,fil),os.path.join(root,new_fil))
-
+#res_list_full, res_list_max, res_list_fn, res_list_labels = auxua.get_results_from_txt(rslt_path=rslt_path)
 

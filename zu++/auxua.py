@@ -37,7 +37,23 @@ def rename_folders(path, old_string, new_string,dry_run=True):
             new_folder = folder.replace(old_string, new_string)
             if dry_run:print("src",os.path.join(path, folder),"\ndst",os.path.join(path, new_folder),"\n")
             else:os.rename(os.path.join(path, folder), os.path.join(path, new_folder))        
-   
+
+
+def sort_files(fldr_or_file):
+
+    if os.path.isfile(fldr_or_file) and os.path.split(fldr_or_file)[1] == ".txt":
+        cmd = "sort "+fldr_or_file+" -o "+fldr_or_file
+        os.system(str(cmd))
+        print(cmd)
+    else:
+        for file in os.listdir(fldr_or_file):
+            fname, fext = os.path.splitext(file)
+            if fext == ".txt":
+                cmd = "sort "+os.path.join(fldr_or_file, file)+" -o "+os.path.join(fldr_or_file, file)
+                os.system(str(cmd))
+                print(cmd)
+
+
             
 #--------------------------------------------------------#
 
@@ -154,7 +170,7 @@ def get_precision_recall_f1(labels, predictions):
     p = tf.keras.metrics.Precision(thresholds = 0.5)
     p.update_state(labels, predictions)
     p_res = p.result().numpy()
-    print("\tPRECISION (%% of True Positive out of all Positive predicted) ",p_res)
+    print("\tPRECISION (%% of True 1 out of all Positive predicted) ",p_res)
     
     r = tf.keras.metrics.Recall(thresholds=0.5)
     r.update_state(labels, predictions)
@@ -164,7 +180,7 @@ def get_precision_recall_f1(labels, predictions):
     #https://glassboxmedicine.com/2019/03/02/measuring-performance-auprc/
     auprc_ap = sklearn.metrics.average_precision_score(labels, predictions)
     aucroc = sklearn.metrics.roc_auc_score(labels, predictions)
-    print("\tAP ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
+    print("\tAUPRC ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
     
     #https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
     #import tensorflow_addons as tfa
@@ -187,15 +203,20 @@ def buf_count_newlines_gen(fname):
         count = sum(buf.count(b"\n") for buf in _make_gen(f.raw.read))
     return count
 
-def get_results_from_txt(rslt_path):
+def get_results_from_txt(fldr_or_file):
     res_txt_fn = []
     res_model_fn = []
     
-    for file in os.listdir(rslt_path):
-        fname, fext = os.path.splitext(file)
-        if fext == ".txt" and file.find('weights') != -1:
-            res_txt_fn.append(os.path.join(rslt_path, file))
-            res_model_fn.append(fname)
+    if os.path.isfile(fldr_or_file):
+        fname, fext = os.path.splitext(fldr_or_file)
+        res_txt_fn.append(os.path.join(fldr_or_file))
+        res_model_fn.append(fname)
+    else:
+        for file in os.listdir(fldr_or_file):
+            fname, fext = os.path.splitext(file)
+            if fext == ".txt" and file.find('weights') != -1:
+                res_txt_fn.append(os.path.join(fldr_or_file, file))
+                res_model_fn.append(fname)
     
     res_txt_fn = sorted(res_txt_fn)
     res_model_fn = sorted(res_model_fn)

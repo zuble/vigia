@@ -3,6 +3,7 @@ import os , cv2
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import pandas as pd
 
 import sklearn
 from sklearn.metrics import confusion_matrix
@@ -11,6 +12,7 @@ from IPython import display
 import tensorflow as tf
 from keras import backend as K
 
+import neptune
 #--------------------------------------------------------#
 
 
@@ -56,7 +58,7 @@ def sort_files(fldr_or_file):
 
             
 #--------------------------------------------------------#
-
+# XD VIOLENCE DATASET INFO
 
 def get_xdv_info(path,test=False,train=False):
     data = '';aux=0;total=0;line='';txt_fn='';
@@ -111,8 +113,9 @@ def get_testxdvanom_info():
             "%.2f"%(total_secs), "secs\n"\
             "MEAN OF", "%.2f"%(mean_frames),"frames  "\
             "%.2f"%(mean_secs), "secs per video\n")
-#--------------------------------------------------------#
 
+#--------------------------------------------------------#
+# RESULTS AND HISTOGRAMA PRINT AND PLOTS
 
 """ 
 METRICS/RESULTS CALCULUS
@@ -191,6 +194,7 @@ def get_precision_recall_f1(labels, predictions):
     
     return p_res,r_res,auprc_ap,aucroc,f1_res
 
+
 #https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python/68385697#68385697
 def buf_count_newlines_gen(fname):
     def _make_gen(reader):
@@ -204,33 +208,34 @@ def buf_count_newlines_gen(fname):
     return count
 
 def get_results_from_txt(fldr_or_file):
-    res_txt_fn = []
+    res_path = []
     res_model_fn = []
+    
     
     if os.path.isfile(fldr_or_file):
         fname, fext = os.path.splitext(fldr_or_file)
-        res_txt_fn.append(os.path.join(fldr_or_file))
+        res_path.append(os.path.join(fldr_or_file))
         res_model_fn.append(fname)
     else:
         for file in os.listdir(fldr_or_file):
             fname, fext = os.path.splitext(file)
             if fext == ".txt" and file.find('weights') != -1:
-                res_txt_fn.append(os.path.join(fldr_or_file, file))
+                res_path.append(os.path.join(fldr_or_file, file))
                 res_model_fn.append(fname)
     
-    res_txt_fn = sorted(res_txt_fn)
+    res_path = sorted(res_path)
     res_model_fn = sorted(res_model_fn)
     
     i=0
-    res_list_full = [[() for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
-    res_list_max = [[0.0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
-    res_list_fn = [['' for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
+    res_list_full = [[() for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
+    res_list_max = [[0.0 for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
+    res_list_fn = [['' for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
     #print(np.shape(res_list_full))
     
-    n_models = len(res_txt_fn)
+    n_models = len(res_path)
     for txt_i in range(n_models):
-        print('\nOPENING',res_txt_fn[txt_i])
-        txt = open(res_txt_fn[txt_i],'r')
+        print('\nOPENING',res_path[txt_i])
+        txt = open(res_path[txt_i],'r')
         txt_data = txt.read()
         txt.close()
 
@@ -247,14 +252,14 @@ def get_results_from_txt(fldr_or_file):
             res_list_full[video_j][txt_i] = aux2_line
     
     
-    res_list_labels = [[0 for i in range(len(res_txt_fn))] for j in range(buf_count_newlines_gen(res_txt_fn[i]))]
+    res_list_labels = [[0 for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
     n_videos = np.shape(res_list_fn)[0]
     for txt_i in range(n_models):
         for video_j in range(n_videos):
             if 'label_A' not in res_list_fn[video_j][txt_i]:
                 res_list_labels[video_j][txt_i] = 1
         
-    for i in range(len(res_txt_fn)):
+    for i in range(len(res_path)):
         print("\nresults for",res_model_fn[i])
             
         res_col = [col[i] for col in res_list_max]
@@ -263,6 +268,81 @@ def get_results_from_txt(fldr_or_file):
         
     return res_list_full, res_list_max, res_list_fn, res_list_labels
 
+
+
+def get_histplot_from_csv(fldr_or_file,versus=False,run=None):
+    
+    def strip_model_fn(fn):
+        tokens = fn.split("_")
+        return str(tokens[1]+'_'+tokens[2]+'_'+tokens[3]+'_'+tokens[4])
+    
+    strings=["loss","accuracy","precision","recall","auc","prc","tp","fp","tn","fn"]
+    csv_path=[]
+    csv_fn=[]
+
+
+    if not versus:
+
+        if os.path.isfile(fldr_or_file):
+            fname, fext = os.path.splitext(fldr_or_file)
+            print(fname)
+            csv_path.append(os.path.join(fldr_or_file))
+            csv_fn.append(fname)
+        else:
+            for root, dirs, files in os.walk(fldr_or_file):
+                for file in files:    
+                    fname, fext = os.path.splitext(file)
+                    if fext == ".csv":
+                        print(fname)
+                        csv_path.append(os.path.join(fldr_or_file,file))
+                        csv_fn.append(fname)
+
+        #1 PLOT PER METRICS PER MODEL
+        for csv in range(len(csv_path)):
+            data = pd.read_csv(csv_path[csv]) # read csv file
+
+            #single metrics per plot
+            for i in range(0,6):
+                plt.plot(data[strings[i]],label=strings[i])
+                #plt.plot(data[strings[str]]) # 4validation
+                plt.xlabel('epochs');plt.ylabel(strings[i])
+                plt.legend();plt.title(csv_fn[csv])
+                plt.show()
+
+            # tp , fn ,tn ,fn all in 1 plot
+            for j in range(6,10):plt.plot(data[strings[j]]) 
+            plt.xlabel('epochs')
+            plt.ylabel('videos')
+            plt.legend([strings[6],strings[7],strings[8],strings[9]])
+            plt.title(csv_fn[csv])
+            plt.show()
+
+
+    # PLOT SAME METRICS FOR ALL CSV
+    else:
+        if os.path.isfile(fldr_or_file): 
+            raise Exception("must be folder to print the metrics versus per model")
+        
+        for root, dirs, files in os.walk(fldr_or_file):
+                for file in files:    
+                    fname, fext = os.path.splitext(file)
+                    if fext == ".csv":
+                        print(fname)
+                        csv_path.append(os.path.join(fldr_or_file,file))
+                        csv_fn.append(fname)
+
+        for i in range(0,6):
+            for csv in range(len(csv_path)):  
+                data = pd.read_csv(csv_path[csv])
+                label = strip_model_fn(csv_fn[csv])
+                #print(csv_path[csv]+"\n"+label)
+                plt.plot(data[strings[i]],label=label)
+              
+            plt.xlabel('epochs');plt.ylabel(strings[i])
+            plt.legend();plt.title(strings[i]+' VS')
+            plt.show()
+            # Log the plot to Neptune
+            if run:run['train/hist_'+strings[i]+' VS'].upload(neptune.types.File.as_image(plt.gcf()))
 
 #------------------------------------------------------------#
 

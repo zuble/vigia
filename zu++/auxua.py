@@ -1,4 +1,4 @@
-import os , cv2
+import os , cv2 , logging
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -8,13 +8,69 @@ import pandas as pd
 import sklearn
 from sklearn.metrics import confusion_matrix
 from IPython import display
+from prettytable import PrettyTable
 
 import tensorflow as tf
 from keras import backend as K
 
 import neptune
-#--------------------------------------------------------#
 
+
+
+
+#--------------------------------------------------------#
+def set_2wdpath_var():
+    BASE_VIGIA_DIR = "/media/jtstudents/HDD/.zuble/vigia"
+    
+    #SERVER_TRAIN_PATH = '/home/zhen/Documents/Remote/raid/DATASETS/anomaly/UCF_Crimes/Videos'
+    SERVER_TRAIN_PATH = '/media/jtstudents/HDD/.zuble/xdviol/train'
+    SERVER_TEST_PATH = '/media/jtstudents/HDD/.zuble/xdviol/test'
+
+
+    WEIGHTS_PATH = BASE_VIGIA_DIR+"/zhen++/parameters_saved"
+    RSLT_PATH = BASE_VIGIA_DIR+'zhen++/parameters_results/original_bt'
+    
+
+#--------------------------------------------------------#
+# GPU TF CONFIGURATION
+
+#https://www.tensorflow.org/guide/gpu 
+#https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
+
+def set_memory_growth():
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        print("\nAvaiable GPU's",gpus)
+        try:
+            # Currently, memory growth needs to be the same across GPUs
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+
+def set_tf_loglevel(level):
+    if level >= logging.FATAL:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    if level >= logging.ERROR:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    if level >= logging.WARNING:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+    else:
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
+    logging.getLogger('tensorflow').setLevel(level)
+
+    gpus = tf.config.list_physical_devices('GPU')
+    print("Num GPUs Available: ", len(gpus));
+    for i in range(len(gpus)) :print(str(gpus[i]))
+
+
+
+#--------------------------------------------------------#
+# FILE ND FOLDERS NAMING
 
 def rename_files(path,old,new,dry_run=True):
     #path = weights_path
@@ -55,8 +111,8 @@ def sort_files(fldr_or_file):
                 os.system(str(cmd))
                 print(cmd)
 
+      
 
-            
 #--------------------------------------------------------#
 # XD VIOLENCE DATASET INFO
 
@@ -114,6 +170,8 @@ def get_testxdvanom_info():
             "MEAN OF", "%.2f"%(mean_frames),"frames  "\
             "%.2f"%(mean_secs), "secs per video\n")
 
+
+
 #--------------------------------------------------------#
 # RESULTS AND HISTOGRAMA PRINT AND PLOTS
 
@@ -122,16 +180,16 @@ METRICS/RESULTS CALCULUS
 https://www.tensorflow.org/tutorials/structured_data/imbalanced_data 
 """
 
-def plot_cm(name,labels,predictions,p=0.5):
+def plot_cm(name,labels,predictions,threshold=0.5):
     '''
     https://www.tensorflow.org/tutorials/structured_data/imbalanced_data#download_the_kaggle_credit_card_fraud_data_set
     '''
     predictions = np.array(predictions)
-    cm = confusion_matrix(labels, predictions > p)
+    cm = confusion_matrix(labels, predictions > threshold)
     #plt.clf()
     plt.figure(figsize=(5,5))
     sns.heatmap(cm, annot=True, fmt="d")
-    plt.title('Confusion matrix @{:.2f}'.format(p))
+    plt.title('Confusion matrix @{:.2f}'.format(threshold))
     plt.ylabel('Actual label')
     plt.xlabel('Predicted label')
     plt.savefig(name+'.png',facecolor='white', transparent=False)
@@ -169,34 +227,42 @@ def plot_prc(name, labels, predictions, **kwargs):
     plt.savefig(name+'.png',facecolor='white', transparent=False)
     plt.show()
 
-def get_precision_recall_f1(labels, predictions):
-    p = tf.keras.metrics.Precision(thresholds = 0.5)
-    p.update_state(labels, predictions)
-    p_res = p.result().numpy()
-    print("\tPRECISION (%% of True 1 out of all Positive predicted) ",p_res)
+def get_cm_accuracy_precision_recall_f1(labels, predictions,printt=True):
+    #plot_cm()
+
+    acc = tf.metrics.BinaryAccuracy()
+    acc.update_state(labels, predictions)
+    acc_res = acc.result().numpy()
+    if printt:print("\tACCURACY  ",acc_res)
+
+    pre = tf.keras.metrics.Precision(thresholds = 0.5)
+    pre.update_state(labels, predictions)
+    pre_res = pre.result().numpy()
+    if printt:print("\tPRECISION (%% of True 1 out of all Positive predicted) ",pre_res)
     
-    r = tf.keras.metrics.Recall(thresholds=0.5)
-    r.update_state(labels, predictions)
-    r_res = r.result().numpy()
-    print("\tRECALL (%% of True Positive out of all actual anomalies) ",r_res)
+    rec = tf.keras.metrics.Recall(thresholds=0.5)
+    rec.update_state(labels, predictions)
+    rec_res = rec.result().numpy()
+    if printt:print("\tRECALL (%% of True Positive out of all actual anomalies) ",rec_res)
     
     #https://glassboxmedicine.com/2019/03/02/measuring-performance-auprc/
     auprc_ap = sklearn.metrics.average_precision_score(labels, predictions)
     aucroc = sklearn.metrics.roc_auc_score(labels, predictions)
-    print("\tAUPRC ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
+    if printt:print("\tAUPRC ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
     
     #https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
     #import tensorflow_addons as tfa
     #f1 = tfa.metrics.F1Score(num_classes=2, threshold=0.5)
     #f1.update_state(labels, predictions)
-    f1_res = 2*((p_res*r_res)/(p_res+r_res+K.epsilon()))
-    print("\tF1_SCORE (harmonic mean of precision and recall) ",f1_res)
+    f1_res = 2*((pre_res*rec_res)/(pre_res+rec_res+K.epsilon()))
+    if printt:print("\tF1_SCORE (harmonic mean of precision and recall) ",f1_res)
     
-    return p_res,r_res,auprc_ap,aucroc,f1_res
+    return (acc_res,pre_res,rec_res,auprc_ap,aucroc,f1_res)
 
 
 #https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python/68385697#68385697
 def buf_count_newlines_gen(fname):
+    #https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python/68385697#68385697
     def _make_gen(reader):
         while True:
             b = reader(2 ** 16)
@@ -208,33 +274,28 @@ def buf_count_newlines_gen(fname):
     return count
 
 def get_results_from_txt(fldr_or_file):
-    res_path = []
-    res_model_fn = []
     
-    
+    res_path = [];res_model_fn = [] 
     if os.path.isfile(fldr_or_file):
         fname, fext = os.path.splitext(fldr_or_file)
         res_path.append(os.path.join(fldr_or_file))
         res_model_fn.append(fname)
     else:
         for file in os.listdir(fldr_or_file):
-            fname, fext = os.path.splitext(file)
-            if fext == ".txt" and file.find('weights') != -1:
+            if os.path.splitext(file)[1] == ".txt": #and file.find('weights') != -1
                 res_path.append(os.path.join(fldr_or_file, file))
-                res_model_fn.append(fname)
-    
     res_path = sorted(res_path)
-    res_model_fn = sorted(res_model_fn)
-    
-    i=0
-    res_list_full = [[() for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
-    res_list_max = [[0.0 for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
-    res_list_fn = [['' for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
+    for j in range(len(res_path)):res_model_fn.append(os.path.splitext(os.path.basename(res_path[j]))[0])
+
+    # save into matrix all predictions info from all txt files within fx input
+    total_txt = len(res_path) ;i=0
+    res_list_full = [[() for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
+    res_list_max = [[0.0 for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
+    res_list_fn = [['' for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
     #print(np.shape(res_list_full))
     
-    n_models = len(res_path)
-    for txt_i in range(n_models):
-        print('\nOPENING',res_path[txt_i])
+    for txt_i in range(total_txt):
+        print('OPENING',res_path[txt_i])
         txt = open(res_path[txt_i],'r')
         txt_data = txt.read()
         txt.close()
@@ -251,26 +312,50 @@ def get_results_from_txt(fldr_or_file):
             #print(aux2_line)
             res_list_full[video_j][txt_i] = aux2_line
     
-    
-    res_list_labels = [[0 for i in range(len(res_path))] for j in range(buf_count_newlines_gen(res_path[i]))]
-    n_videos = np.shape(res_list_fn)[0]
-    for txt_i in range(n_models):
-        for video_j in range(n_videos):
-            if 'label_A' not in res_list_fn[video_j][txt_i]:
+
+    res_list_labels = [[0 for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
+    total_videos = np.shape(res_list_fn)[0]
+    for txt_i in range(total_txt):
+        for video_j in range(total_videos):
+            #list inti all zero so only care to anom/1
+            if 'label_A' not in res_list_fn[video_j][txt_i]: 
                 res_list_labels[video_j][txt_i] = 1
-        
-    for i in range(len(res_path)):
-        print("\nresults for",res_model_fn[i])
-            
+
+    # PRINTS
+    def strip_res_model_fn(fn):
+        tokens = []
+        for i in range(len(fn)):
+            aux = fn[i].split("_",1)
+            tokens.append(str(aux[1]))
+        return tokens
+    res_model_fn_strap = strip_res_model_fn(res_model_fn)
+    
+    # text
+    for i in range(total_txt):
+        print("\nresults for",res_model_fn_strap[i])
         res_col = [col[i] for col in res_list_max]
         labels_col = [col[i] for col in res_list_labels]
-        get_precision_recall_f1(labels_col,res_col)
-        
-    return res_list_full, res_list_max, res_list_fn, res_list_labels
+        ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col)
+
+    # table
+    table = PrettyTable()
+    table.add_column("MODEL", res_model_fn_strap)
+    metrics = ["Accuracy","Precision","Recall","AUPRC-AP","AUROC","F1-score"]
+    for i in range(len(metrics)):
+        new_tbl_col = []
+        for j in range(total_txt):
+            res_col = [col[j] for col in res_list_max]
+            labels_col = [col[j] for col in res_list_labels]
+            ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col,False)
+            new_tbl_col.append("{:.4f}".format(ress[i]))
+        table.add_column(metrics[i], new_tbl_col)
+    print(table)
+    
+    return res_list_full,res_list_max,res_list_fn,res_list_labels,res_path,res_model_fn,res_model_fn_strap
 
 
 
-def get_histplot_from_csv(fldr_or_file,versus=False,run=None):
+def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=None):
     
     def strip_model_fn(fn):
         tokens = fn.split("_")
@@ -279,7 +364,6 @@ def get_histplot_from_csv(fldr_or_file,versus=False,run=None):
     strings=["loss","accuracy","precision","recall","auc","prc","tp","fp","tn","fn"]
     csv_path=[]
     csv_fn=[]
-
 
     if not versus:
 
@@ -340,9 +424,11 @@ def get_histplot_from_csv(fldr_or_file,versus=False,run=None):
               
             plt.xlabel('epochs');plt.ylabel(strings[i])
             plt.legend();plt.title(strings[i]+' VS')
-            plt.show()
-            # Log the plot to Neptune
+            
             if run:run['train/hist_'+strings[i]+' VS'].upload(neptune.types.File.as_image(plt.gcf()))
+            if save: plt.savefig(os.path.join(os.path.dirname(csv_path[0]),strings[i]+'.png'))
+            if show:plt.show();
+
 
 #------------------------------------------------------------#
 

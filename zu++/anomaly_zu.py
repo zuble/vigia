@@ -182,6 +182,8 @@ def train_valdt_files():
 def nept_load_dataset():
     
     #run["dataset/train"].track_files(SERVER_TRAIN_PATH,wait=True)
+    
+    
     del project["dataset"]
     
     for i in range(len(train_normal_fn)): project["dataset/train_normal/"+os.path.basename(train_normal_fn[i])].upload(train_normal_fn[i])
@@ -194,8 +196,8 @@ def nept_load_dataset():
 test_fn , test_abnormal_fn , test_normal_fn , test_labels = test_files()
 train_fn, train_labels, valdt_fn, valdt_labels = train_valdt_files()
 
-
-update_index = range(0, len(train_fn))
+update_index_train = range(0, len(train_fn))
+update_index_valdt = range(0, len(valdt_fn))
 
 # %%
 """ INPUT DATA"""
@@ -226,6 +228,8 @@ def input_train_video_data(file_name):
     batch_frames = []
     batch_frames_flip = []
     counter = 0
+    
+    # gets random batch w\ frame max lenght 
     if 'Normal' in file_name:
         print("\n\nNORMAL\n\n")
         if divid_no != 1:
@@ -282,20 +286,23 @@ def input_train_video_data(file_name):
         
     return np.expand_dims(batch_frames,0), np.expand_dims(batch_frames_flip, 0), total_frame
 
-def generate_input(data):
+def generate_input(data,update_index,validation):
     #has_visited = [0 for i in range(len(train_fn))]
-
-    print("\n\nGENERATE_INPUT\n")
+    data_var_name = [k for k, v in globals().items() if v is data][0]
+    print("\n\nGENERATE_INPUT FOR",data_var_name,\
+        '\n\tupdate_index len = ',len(update_index),\
+        '\n\tdata len = ',len(data))
+    
     loop_no = 0
     while 1:
         index = update_index[loop_no]
         loop_no += 1
-        if loop_no == len(data):
-            loop_no = 0
-            
+        print("\n",data_var_name," index",index," loop_no",loop_no)
+        if loop_no == len(data):loop_no= 0
+        
         #index = 0
         batch_frames, batch_frames_flip, total_frames = input_train_video_data(data[index])
-        print("\n\ttrain_fn[",index,"]=",data[index],"\ntotal_frames=",total_frames,"\nbatch_frames.shape=",batch_frames.shape)
+        print("\n\t",data_var_name,"data[",index,"]=",data[index],"\n\ttotal_frames=",total_frames,"\n\tbatch_frames.shape=",batch_frames.shape,"\n")
         #if batch_frames.ndim != 5:
         #   break
         
@@ -305,50 +312,20 @@ def generate_input(data):
         # YIELD 
         #       like a return, except the function will return a generator
         
-        '''
-        if 'Abuse' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([1,0,0,0,0,0,0,0,0,0,0,0,0,0])])
-        elif 'Arrest' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,1,0,0,0,0,0,0,0,0,0,0,0,0])])
-        elif 'Arson' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,1,0,0,0,0,0,0,0,0,0,0,0])])
-        elif 'Assault' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,1,0,0,0,0,0,0,0,0,0,0])]) 
-        elif 'Burglary' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,1,0,0,0,0,0,0,0,0,0])]) 
-        elif 'Explosion' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,1,0,0,0,0,0,0,0,0])])        
-        elif 'Fighting' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,1,0,0,0,0,0,0,0])]) 
-        elif 'RoadAccidents' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,1,0,0,0,0,0,0])]) 
-        elif 'Robbery' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,1,0,0,0,0,0])]) 
-        elif 'Shooting' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,1,0,0,0,0])]) 
-        elif 'Shoplifting' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,1,0,0,0])]) 
-        elif 'Stealing' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,0,1,0,0])])
-        elif 'Normal' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,0,0,1,0])]) 
-        elif 'Vandalism' in train_fn[index]:
-            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,1])]) 
-        '''
-        
-        #batch_frames
-        if 'label_A' in data[index]:
-            yield batch_frames, np.array([0])   #normal
+        if not validation:
+            #batch_frames
+            if 'label_A' in data[index]: yield batch_frames, np.array([0])   #normal
+            else: yield batch_frames, np.array([1])   #abnormal
+            
+            #batch_frames_flip
+            if 'label_A' in data[index]: yield batch_frames_flip, np.array([0])  #normal
+            else: yield batch_frames_flip, np.array([1])  #abnormal
         else:
-            yield batch_frames, np.array([1])   #abnormal
-
-        #batch_frames_flip
-        if 'label_A' in data[index]:
-            yield batch_frames_flip, np.array([0])  #normal
-        else:
-            yield batch_frames_flip, np.array([1])  #abnormal
-    
-    print("loop_no=",loop_no)
+            #batch_frames
+            if 'label_A' in data[index]: yield batch_frames, np.array([0])   #normal
+            else: yield batch_frames, np.array([1])   #abnormal
+                
+    print("\nloop_no=",loop_no)
 
 
 def input_test_video_data(file_name,config,batch_no=0):
@@ -787,7 +764,7 @@ def train_model(model,config,ckptgui=False):
     MODEL TRAIN/VALIDATION 
     (silent mode - verbose = 0)
     '''
-    print("TRAIN MODEL")
+    print("\nTRAIN MODEL")
     
     #start from ckpt .h5
     if int(config["ckpt_start"]):  #aux = f"{34:0>8}"; if int(aux): print(type(aux), aux)
@@ -833,15 +810,17 @@ def train_model(model,config,ckptgui=False):
         
  
     print("\n\tMODEL.FIT w/ name ",model_name)
-    early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
-    neptune_callback = NeptuneCallback(run=run,log_model_diagram=True) 
-    history = model.fit(generate_input(data = train_fn), 
-                        steps_per_epoch=len(train_fn)*2, 
+    early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
+    neptune_callback = NeptuneCallback(run=run,log_on_batch=True,log_model_diagram=True) 
+    history = model.fit(generate_input(data = train_fn,update_index=update_index_train,validation=False), 
+                        steps_per_epoch=len(train_fn)*2,
                         epochs=config["epochs"], 
-                        verbose=1,
-                        validation_data=generate_input(data=valdt_fn), 
+                        verbose=2,
+                        validation_data=generate_input(data=valdt_fn,update_index=update_index_valdt,validation=True),
+                        validation_steps=len(valdt_fn),
                         callbacks=[checkpoint_callback,  \
-                                   TqdmCallback(verbose=2), \
+                                   early_stop_callback, \
+                                   TqdmCallback(verbose=0), \
                                    neptune_callback])
     
     model.save(MODEL_PATH + model_name + '.h5')
@@ -990,11 +969,11 @@ def test_model(model,model_name,config,files=test_fn):
 
 train_config = {
     "ativa" : 'leakyrelu',
-    "optima" : 'adam',
+    "optima" : 'adamamsgrad',
     "batch_type" : 0,   # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '2000',
+    "frame_max" : '4000',
     "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
-    "epochs" : 1
+    "epochs" : 30
 }
 run["train/config_train"].append(train_config)
 

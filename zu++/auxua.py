@@ -260,7 +260,6 @@ def get_cm_accuracy_precision_recall_f1(labels, predictions,printt=True):
     return (acc_res,pre_res,rec_res,auprc_ap,aucroc,f1_res)
 
 
-#https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python/68385697#68385697
 def buf_count_newlines_gen(fname):
     #https://stackoverflow.com/questions/845058/how-to-get-line-count-of-a-large-file-cheaply-in-python/68385697#68385697
     def _make_gen(reader):
@@ -354,12 +353,29 @@ def get_results_from_txt(fldr_or_file):
     return res_list_full,res_list_max,res_list_fn,res_list_labels,res_path,res_model_fn,res_model_fn_strap
 
 
+#------------------------------------------------------------#
+# hist.csv
 
-def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=None):
+def count_files(directory):
+    return len([file for file in os.listdir(directory) if os.path.isfile(os.path.join(directory, file))])
+
+def strip_model_fn(fn):
+    tokens = fn.split("_")
+    return str(tokens[1]+'_'+tokens[2]+'_'+tokens[3]+'_'+tokens[4])
+
+
+# save/run not implemented in versus false
+def get_histplot_wo_val_from_csv(fldr_or_file,versus=False,save=False,show=True,run=None):
     
-    def strip_model_fn(fn):
-        tokens = fn.split("_")
-        return str(tokens[1]+'_'+tokens[2]+'_'+tokens[3]+'_'+tokens[4])
+    '''
+    fldr_or_file: takes into account subfolders
+    versus:
+        -false
+            plots 1 metric per model separatly , 
+            except for tp,fp,tn,fn (all4in1plot)
+        -true
+            plots 1 metric for all model history csv 
+    '''
     
     strings=["loss","accuracy","precision","recall","auc","prc","tp","fp","tn","fn"]
     csv_path=[]
@@ -370,7 +386,7 @@ def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=Non
         if os.path.isfile(fldr_or_file):
             fname, fext = os.path.splitext(fldr_or_file)
             print(fname)
-            csv_path.append(os.path.join(fldr_or_file))
+            csv_path.append(fldr_or_file)
             csv_fn.append(fname)
         else:
             for root, dirs, files in os.walk(fldr_or_file):
@@ -378,7 +394,7 @@ def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=Non
                     fname, fext = os.path.splitext(file)
                     if fext == ".csv":
                         print(fname)
-                        csv_path.append(os.path.join(fldr_or_file,file))
+                        csv_path.append(os.path.join(root,file))
                         csv_fn.append(fname)
 
         #1 PLOT PER METRICS PER MODEL
@@ -401,25 +417,22 @@ def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=Non
             plt.title(csv_fn[csv])
             plt.show()
 
-
-    # PLOT SAME METRICS FOR ALL CSV
     else:
         if os.path.isfile(fldr_or_file): 
             raise Exception("must be folder to print the metrics versus per model")
-        
+ 
         for root, dirs, files in os.walk(fldr_or_file):
-                for file in files:    
-                    fname, fext = os.path.splitext(file)
-                    if fext == ".csv":
-                        print(fname)
-                        csv_path.append(os.path.join(fldr_or_file,file))
-                        csv_fn.append(fname)
-
+            for file in files:    
+                fname, fext = os.path.splitext(file)
+                if fext == ".csv":
+                    print(fname)
+                    csv_path.append(os.path.join(root,file))
+                    csv_fn.append(fname)
+          
         for i in range(0,6):
             for csv in range(len(csv_path)):  
                 data = pd.read_csv(csv_path[csv])
                 label = strip_model_fn(csv_fn[csv])
-                #print(csv_path[csv]+"\n"+label)
                 plt.plot(data[strings[i]],label=label)
               
             plt.xlabel('epochs');plt.ylabel(strings[i])
@@ -428,6 +441,87 @@ def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=Non
             if run:run['train/hist_'+strings[i]+' VS'].upload(neptune.types.File.as_image(plt.gcf()))
             if save: plt.savefig(os.path.join(os.path.dirname(csv_path[0]),strings[i]+'.png'))
             if show:plt.show();
+
+
+# to test versus plots            
+def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=None):
+    
+    strings=["loss","accuracy","precision","recall","auc","prc","tp","fp","tn","fn",\
+            "val_loss","val_accuracy","val_precision","val_recall","val_auc","val_prc","val_tp","val_fp","val_tn","val_fn"]
+    csv_path=[]
+    csv_fn=[]
+    plt.style.use('bmh')
+    
+    if not versus:
+
+        if os.path.isfile(fldr_or_file):
+            fname, fext = os.path.splitext(fldr_or_file)
+            print(fname)
+            csv_path.append(os.path.join(fldr_or_file))
+            csv_fn.append(fname)
+        else:
+            for root, dirs, files in os.walk(fldr_or_file):
+                for file in files:    
+                    fname, fext = os.path.splitext(file)
+                    if fext == ".csv":
+                        print(fname)
+                        csv_path.append(os.path.join(fldr_or_file,file))
+                        csv_fn.append(fname)
+                break
+
+        #1 PLOT loss+val_loss / acc+val_acc /... PER MODEL
+        for csv in range(len(csv_path)):
+            data = pd.read_csv(csv_path[csv]) # read csv file
+
+            #single metrics per plot
+            for i in range(0,6):
+                plt.plot(data[strings[i]],label=strings[i])
+                plt.plot(data[strings[i+10]],label=strings[i+10]) # 4validation
+                plt.xlabel('epochs');plt.ylabel(strings[i])
+                plt.legend();plt.title(csv_fn[csv])
+                plt.show()
+
+            # tp,fn,tn,fn + it's val all in 1 plot
+            strs=[]
+            for j in range(6,10):
+                plt.plot(data[strings[j]]);strs.append(strings[j])
+                plt.plot(data[strings[j+10]]);strs.append(strings[j+10])
+            plt.xlabel('epochs')
+            plt.ylabel('videos')
+            plt.legend(strs)
+            plt.title(csv_fn[csv])
+            plt.show()
+
+
+    # PLOT SAME METRICS TOGETHER FOR ALL MODEL HISTORY .csv
+    else:
+        if os.path.isfile(fldr_or_file): 
+            raise Exception("must be folder to print the metrics versus per model")
+        elif count_files(fldr_or_file) == 1:
+            raise Exception("must have more than 1 history to print the metrics versus per model")
+        
+        for root, dirs, files in os.walk(fldr_or_file):
+            for file in files:    
+                fname, fext = os.path.splitext(file)
+                if fext == ".csv":
+                    print(fname)
+                    csv_path.append(os.path.join(fldr_or_file,file))
+                    csv_fn.append(fname)
+            break
+
+        #for i in list(range(0,6)) + list(range(10,16)):
+        #    for csv in range(len(csv_path)):  
+        #        data = pd.read_csv(csv_path[csv])
+        #        label = strip_model_fn(csv_fn[csv])
+        #        #print(csv_path[csv]+"\n"+label)
+        #        plt.plot(data[strings[i]],label=label)
+        #      
+        #    plt.xlabel('epochs');plt.ylabel(strings[i])
+        #    plt.legend();plt.title(strings[i]+' VS')
+        #    
+        #    if run:run['train/hist_'+strings[i]+' VS'].upload(neptune.types.File.as_image(plt.gcf()))
+        #    if save: plt.savefig(os.path.join(os.path.dirname(csv_path[0]),strings[i]+'.png'))
+        #    if show:plt.show();
 
 
 #------------------------------------------------------------#
@@ -495,3 +589,37 @@ def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=Non
 #test_zhen_h5()
 
 #res_list_full,res_list_max,rest_list_fn,res_list_labels = get_results_from_txt()
+
+#--------------------------------------------------------------#
+# def generate_input(data):for the other dataset zhen used
+
+'''
+        if 'Abuse' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([1,0,0,0,0,0,0,0,0,0,0,0,0,0])])
+        elif 'Arrest' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,1,0,0,0,0,0,0,0,0,0,0,0,0])])
+        elif 'Arson' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,1,0,0,0,0,0,0,0,0,0,0,0])])
+        elif 'Assault' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,1,0,0,0,0,0,0,0,0,0,0])]) 
+        elif 'Burglary' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,1,0,0,0,0,0,0,0,0,0])]) 
+        elif 'Explosion' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,1,0,0,0,0,0,0,0,0])])        
+        elif 'Fighting' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,1,0,0,0,0,0,0,0])]) 
+        elif 'RoadAccidents' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,1,0,0,0,0,0,0])]) 
+        elif 'Robbery' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,1,0,0,0,0,0])]) 
+        elif 'Shooting' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,1,0,0,0,0])]) 
+        elif 'Shoplifting' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,1,0,0,0])]) 
+        elif 'Stealing' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,0,1,0,0])])
+        elif 'Normal' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,0,0,1,0])]) 
+        elif 'Vandalism' in train_fn[index]:
+            yield batch_frames,  np.array([np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,1])]) 
+        '''

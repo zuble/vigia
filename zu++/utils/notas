@@ -8,6 +8,15 @@ GIT
 
 -----------------------------------------------------------------------------------
 
+PYTHON
+
+    Kill python process running python3
+
+        top (find pid number)
+        kill -9 ..
+
+-----------------------------------------------------------------------------------
+
 CONDA
 
     Export all avaiable envs to current path

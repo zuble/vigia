@@ -4,3 +4,4 @@ zu++/model/ckpt/
 zu++/model/model/
 *.out
 zu++/.neptune/
+zuwav/essentia

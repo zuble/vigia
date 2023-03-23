@@ -28,26 +28,13 @@ from sklearn.model_selection import train_test_split
 import neptune
 from neptune.integrations.tensorflow_keras import NeptuneCallback
 
-import auxua
-
-# %%
-''' PATH VARS '''
-BASE_VIGIA_DIR = "/raid/DATASETS/.zuble/vigia"
-
-SERVER_TRAIN_PATH = '/raid/DATASETS/anomaly/XD_Violence/training/'
-SERVER_TEST_PATH = '/raid/DATASETS/anomaly/XD_Violence/testing'
-
-MODEL_PATH = BASE_VIGIA_DIR+'/zu++/model/model/'
-CKPT_PATH = BASE_VIGIA_DIR+'/zu++/model/ckpt/'
-HIST_PATH = BASE_VIGIA_DIR+'/zu++/model/hist/'
-RSLT_PATH = BASE_VIGIA_DIR+'/zu++/model/rslt/'
-WEIGHTS_PATH = BASE_VIGIA_DIR+'/zu++/model/weights/'
+import utils.auxua as aux
 
 # %%
 ''' GPU CONFIGURATION '''
 
-auxua.set_tf_loglevel(logging.ERROR)
-auxua.tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
+aux.set_tf_loglevel(logging.ERROR)
+aux.tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
@@ -76,7 +63,7 @@ def test_files(onev = 0):
 
     #all test files
     if onev == 0:
-        for root, dirs, files in os.walk(SERVER_TEST_PATH):
+        for root, dirs, files in os.walk(aux.SERVER_TEST_PATH):
             for file in files:
                 if file.find('.mp4') != -1:
                     if 'label_A' in file:
@@ -94,21 +81,21 @@ def test_files(onev = 0):
         
     #only onev random files
     else :
-        test_abn_fn = [x for x in os.listdir(SERVER_TEST_PATH) if 'label_A' not in x]
-        test_nor_fn = [x for x in os.listdir(SERVER_TEST_PATH) if 'label_A' in x]
+        test_abn_fn = [x for x in os.listdir(aux.SERVER_TEST_PATH) if 'label_A' not in x]
+        test_nor_fn = [x for x in os.listdir(aux.SERVER_TEST_PATH) if 'label_A' in x]
         
         onev_abnor = int(onev/2)
         while True: 
             ap = random.choice(test_abn_fn) 
             if ap not in test_fn: 
-                test_fn.append(SERVER_TEST_PATH+"/"+ap)
+                test_fn.append(aux.SERVER_TEST_PATH+"/"+ap)
                 test_labels.append(1)
                 if len(test_fn) == onev_abnor: 
                     break 
         while True: 
             ap = random.choice(test_nor_fn) 
             if ap not in test_fn: 
-                test_fn.append(SERVER_TEST_PATH+"/"+ap)
+                test_fn.append(aux.SERVER_TEST_PATH+"/"+ap)
                 test_labels.append(0)
                 if len(test_fn) == onev: 
                     break    
@@ -134,7 +121,7 @@ def train_valdt_files():
     try:del run["train/data_info"]
     except:run["train/data_info"]
 
-    for root, dirs, files in os.walk(SERVER_TRAIN_PATH):
+    for root, dirs, files in os.walk(aux.SERVER_TRAIN_PATH):
         for file in files:
             if file.find('.mp4') != -1:
                 full_train_fn.append(os.path.join(root, file))
@@ -181,7 +168,7 @@ def train_valdt_files():
 
 def nept_load_dataset():
     
-    #run["dataset/train"].track_files(SERVER_TRAIN_PATH,wait=True)
+    #run["dataset/train"].track_files(aux.SERVER_TRAIN_PATH,wait=True)
     
     
     del project["dataset"]
@@ -648,7 +635,7 @@ def find_h5(path,find_string,ruii):
     '''
     if ruii:
         import PySimpleGUI as sg
-        layout = [  [sg.Input(key="ckpt_h5" ,change_submits=True), sg.FileBrowse(key="browse",initial_folder=MODEL_PATH)],
+        layout = [  [sg.Input(key="ckpt_h5" ,change_submits=True), sg.FileBrowse(key="browse",initial_folder=aux.MODEL_PATH)],
                     [sg.Button("check")]  # identify the multiline via key option]
                 ]
         window = sg.Window("h5ckpt", layout)
@@ -769,12 +756,12 @@ def train_model(model,config,ckptgui=False):
     #start from ckpt .h5
     if int(config["ckpt_start"]):  #aux = f"{34:0>8}"; if int(aux): print(type(aux), aux)
         if ckptgui:
-            model_h5ckpt, model_h5ckpt_path = find_h5(CKPT_PATH,find_string=(),ruii=True)
+            model_h5ckpt, model_h5ckpt_path = find_h5(aux.CKPT_PATH,find_string=(),ruii=True)
             model_h5ckpt = os.path.splitext(model_h5ckpt)[0]
             model.load_weights(model_h5ckpt_path)
         else:
             find_string=[config["ativa"]+'_'+config["optima"]+'_'+str(config["batch_type"])+'_'+config["frame_max"],config["ckpt_start"]]
-            model_h5ckpt, model_h5ckpt_path = find_h5(CKPT_PATH,find_string,ruii=False)
+            model_h5ckpt, model_h5ckpt_path = find_h5(aux.CKPT_PATH,find_string,ruii=False)
 
             model.load_weights(model_h5ckpt_path[0])
             print("\n\tWEIGHTS from ckpt", '/'+os.path.split(os.path.split(model_h5ckpt_path[0])[0])[1]+'/'+os.path.split(model_h5ckpt_path[0])[1])
@@ -783,7 +770,7 @@ def train_model(model,config,ckptgui=False):
         run["train/model_name"] = model_name
         
         # ckeck if its necessary to create a ckpt folder , else check is empty
-        ckpt_path_nw = CKPT_PATH+model_name
+        ckpt_path_nw = aux.CKPT_PATH+model_name
         if os.path.exists(ckpt_path_nw):
             if len(os.listdir(ckpt_path_nw)) == 0:print("\n\tCKPTs at ",ckpt_path_nw)
             else: raise Exception(f"{ckpt_path_nw} is not empty")
@@ -798,7 +785,7 @@ def train_model(model,config,ckptgui=False):
         model_name = time_str + '_'+config["ativa"]+'_'+config["optima"]+'_'+str(config["batch_type"])+'_'+config["frame_max"]
         run["train/model_name"] = model_name
 
-        ckpt_path_nw = CKPT_PATH+model_name
+        ckpt_path_nw = aux.CKPT_PATH+model_name
         if not os.path.exists(ckpt_path_nw):
             os.makedirs(ckpt_path_nw)
         else:raise Exception(f"{ckpt_path_nw} eristes")
@@ -810,7 +797,7 @@ def train_model(model,config,ckptgui=False):
         
  
     print("\n\tMODEL.FIT w/ name ",model_name)
-    early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
+    #early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
     neptune_callback = NeptuneCallback(run=run,log_on_batch=True,log_model_diagram=True) 
     history = model.fit(generate_input(data = train_fn,update_index=update_index_train,validation=False), 
                         steps_per_epoch=len(train_fn)*2,
@@ -819,19 +806,19 @@ def train_model(model,config,ckptgui=False):
                         validation_data=generate_input(data=valdt_fn,update_index=update_index_valdt,validation=True),
                         validation_steps=len(valdt_fn),
                         callbacks=[checkpoint_callback,  \
-                                   early_stop_callback, \
+                                   #early_stop_callback, \
                                    TqdmCallback(verbose=0), \
                                    neptune_callback])
     
-    model.save(MODEL_PATH + model_name + '.h5')
-    model.save(MODEL_PATH + model_name )
-    run["train/path_model"]=MODEL_PATH+model_name
+    model.save(aux.MODEL_PATH + model_name + '.h5')
+    model.save(aux.MODEL_PATH + model_name )
+    run["train/path_model"]=aux.MODEL_PATH+model_name
 
-    model.save_weights(WEIGHTS_PATH + model_name + '_weights.h5')
-    run["train/path_weights"]=WEIGHTS_PATH+model_name+'_weights.h5' 
+    model.save_weights(aux.WEIGHTS_PATH + model_name + '_weights.h5')
+    run["train/path_weights"]=aux.WEIGHTS_PATH+model_name+'_weights.h5' 
     
     # Save the history to a CSV file
-    hist_csv_file = HIST_PATH + model_name + '_history.csv'
+    hist_csv_file = aux.HIST_PATH + model_name + '_history.csv'
     with open(hist_csv_file, 'w', newline='') as file:writer = csv.writer(file);writer.writerow(history.history.keys());writer.writerows(zip(*history.history.values()))
     # OR
     #hist_df = pd.DataFrame(history.history)
@@ -847,7 +834,7 @@ def init_test_model(params):
     model = form_model(params)
     
     find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
-    para_file_name, para_file_path = find_h5(WEIGHTS_PATH,find_string,ruii=False)
+    para_file_name, para_file_path = find_h5(aux.WEIGHTS_PATH,find_string,ruii=False)
     
     model.load_weights(para_file_path[0])
     
@@ -864,7 +851,7 @@ def test_model(model,model_name,config,files=test_fn):
     print("\n\nTEST MODEL\n")
 
     # rslt txt file creation
-    txt_path = RSLT_PATH+model_name+'-'+str(config["batch_type"])+'_'+str(config["frame_max"])+'.txt'
+    txt_path = aux.RSLT_PATH+model_name+'-'+str(config["batch_type"])+'_'+str(config["frame_max"])+'.txt'
     if os.path.isfile(txt_path):raise Exception(txt_path,"eriste")
     else: print("\tSaving @",txt_path,"\n");run["test/path_rslt"] = txt_path
     
@@ -956,7 +943,7 @@ def test_model(model,model_name,config,files=test_fn):
 
     #remove white spaces in file , for further easier reading
     with open(txt_path, 'r+') as f:txt=f.read().replace(' ', '');f.seek(0);f.write(txt);f.truncate()
-    auxua.sort_files(txt_path) #sort alphabetcly
+    aux.sort_files(txt_path) #sort alphabetcly
     run["test/model/rslt"].upload(txt_path)
     
     return predict_total_max, predict_total
@@ -972,8 +959,8 @@ train_config = {
     "optima" : 'adamamsgrad',
     "batch_type" : 0,   # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
     "frame_max" : '4000',
-    "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
-    "epochs" : 30
+    "ckpt_start" : f"{9:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
+    "epochs" : 21
 }
 run["train/config_train"].append(train_config)
 
@@ -1012,7 +999,7 @@ test_config = {
 
 
 # TEST ALL WEIGHTS
-#weights_names , weights_paths = find_h5(WEIGHTS_PATH,find_string=(''),ruii=False)
+#weights_names , weights_paths = find_h5(aux.WEIGHTS_PATH,find_string=(''),ruii=False)
 #for j in range(len(weights_names)):print(weights_names[j])
 #for i in range(len(weights_paths)):
 #    #print(para_file_path[i])

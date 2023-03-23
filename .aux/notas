@@ -46,7 +46,8 @@ CONDA
         conda install -c anaconda scikit-learn seaborn #pandas 
         conda install -c conda-forge neptune-client
         conda install -c conda-forge ffmpeg -> for convert mp4 to aac
-
+        conda install -c conda-forge streamlit 
+        
 -----------------------------------------------------------------------------------
 
 OS 

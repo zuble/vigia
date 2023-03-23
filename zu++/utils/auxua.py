@@ -128,24 +128,29 @@ def sort_txt_abc(fldr_or_file):
 #--------------------------------------------------------#
 # XD VIOLENCE DATASET INFO
 
-def load_xdv_test():
-    mp4_fn, mp4_labels = [],[]
+def load_xdv_test(aac_path):
+    mp4_paths, mp4_labels = [],[]
     for root, dirs, files in os.walk(SERVER_TEST_PATH):
         for file in files:
             if file.find('.mp4') != -1:
-                mp4_fn.append(os.path.join(root, file))
-                if 'label_A' in  file:mp4_labels.append(0)
-                else:mp4_labels.append(1)
-                
-    aac_fn, aac_labels = [],[]                            
-    for root, dirs, files in os.walk(SERVER_TEST_AUD_PATH):
+                mp4_paths.append(os.path.join(root, file))
+    mp4_paths.sort()
+    for i in range(len(mp4_paths)):            
+        if 'label_A' in  file:mp4_labels.append(0)
+        else:mp4_labels.append(1)
+    
+    print('acc_path',aac_path)
+    aac_paths, aac_labels = [],[]                            
+    for root, dirs, files in os.walk(aac_path):
         for file in files:
             if file.find('.aac') != -1:
-                aac_fn.append(os.path.join(root, file))
-                if 'label_A' in  file:aac_labels.append(0)
-                else:aac_labels.append(1)                
+                aac_paths.append(os.path.join(root, file))
+    aac_paths.sort()
+    for i in range(len(aac_paths)):               
+        if 'label_A' in  file:aac_labels.append(0)
+        else:aac_labels.append(1)                
     
-    return mp4_fn,mp4_labels,aac_fn,aac_labels
+    return mp4_paths,mp4_labels,aac_paths,aac_labels
 
 def get_xdv_info(path,test=False,train=False):
     data = '';aux=0;total=0;line='';txt_fn='';
@@ -306,17 +311,21 @@ def buf_count_newlines_gen(fname):
 def get_results_from_txt(fldr_or_file):
     
     res_path = [];res_model_fn = [] 
+    #FILE
     if os.path.isfile(fldr_or_file):
         fname, fext = os.path.splitext(fldr_or_file)
         res_path.append(os.path.join(fldr_or_file))
         res_model_fn.append(fname)
+        table = False
+    # FOLDER
     else:
         for file in os.listdir(fldr_or_file):
             if os.path.splitext(file)[1] == ".txt": #and file.find('weights') != -1
                 res_path.append(os.path.join(fldr_or_file, file))
-    res_path = sorted(res_path)
-    for j in range(len(res_path)):res_model_fn.append(os.path.splitext(os.path.basename(res_path[j]))[0])
-
+        table = True
+        res_path = sorted(res_path)
+        for path in res_path:res_model_fn.append(os.path.splitext(os.path.basename(path))[0])
+    
     # save into matrix all predictions info from all txt files within fx input
     total_txt = len(res_path) ;i=0
     res_list_full = [[() for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
@@ -367,19 +376,20 @@ def get_results_from_txt(fldr_or_file):
         labels_col = [col[i] for col in res_list_labels]
         ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col)
 
-    # table
-    table = PrettyTable()
-    table.add_column("MODEL", res_model_fn_strap)
-    metrics = ["Accuracy","Precision","Recall","AUPRC-AP","AUROC","F1-score"]
-    for i in range(len(metrics)):
-        new_tbl_col = []
-        for j in range(total_txt):
-            res_col = [col[j] for col in res_list_max]
-            labels_col = [col[j] for col in res_list_labels]
-            ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col,False)
-            new_tbl_col.append("{:.4f}".format(ress[i]))
-        table.add_column(metrics[i], new_tbl_col)
-    print(table)
+    # table only when all rslt fld as input
+    if table:
+        table = PrettyTable()
+        table.add_column("MODEL", res_model_fn_strap)
+        metrics = ["Accuracy","Precision","Recall","AUPRC-AP","AUROC","F1-score"]
+        for i in range(len(metrics)):
+            new_tbl_col = []
+            for j in range(total_txt):
+                res_col = [col[j] for col in res_list_max]
+                labels_col = [col[j] for col in res_list_labels]
+                ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col,False)
+                new_tbl_col.append("{:.4f}".format(ress[i]))
+            table.add_column(metrics[i], new_tbl_col)
+        print(table)
     
     return res_list_full,res_list_max,res_list_fn,res_list_labels,res_path,res_model_fn,res_model_fn_strap
 

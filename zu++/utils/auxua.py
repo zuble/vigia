@@ -45,9 +45,8 @@ def set_2wdpath_var():
 
 #--------------------------------------------------------#
 # GPU TF CONFIGURATION
-
-#https://www.tensorflow.org/guide/gpu 
-#https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
+# https://www.tensorflow.org/guide/gpu 
+# https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
 
 def set_memory_growth():
     gpus = tf.config.list_physical_devices('GPU')
@@ -207,7 +206,6 @@ def get_testxdvanom_info():
             "%.2f"%(mean_secs), "secs per video\n")
 
 
-
 #--------------------------------------------------------#
 # RESULTS AND HISTOGRAMA PRINT AND PLOTS
 
@@ -308,33 +306,38 @@ def buf_count_newlines_gen(fname):
         count = sum(buf.count(b"\n") for buf in _make_gen(f.raw.read))
     return count
 
-def get_results_from_txt(fldr_or_file):
+def get_results_from_txt(fldr_or_file,printt=True):
     
     res_path = [];res_model_fn = [] 
     #FILE
     if os.path.isfile(fldr_or_file):
+        if printt:print("FILE")
         fname, fext = os.path.splitext(fldr_or_file)
         res_path.append(os.path.join(fldr_or_file))
-        res_model_fn.append(fname)
-        table = False
+        res_model_fn.append(os.path.splitext(os.path.basename(fldr_or_file))[0])
+        tablee = False
     # FOLDER
     else:
+        if printt:print("FOLDER")
         for file in os.listdir(fldr_or_file):
             if os.path.splitext(file)[1] == ".txt": #and file.find('weights') != -1
                 res_path.append(os.path.join(fldr_or_file, file))
-        table = True
+        tablee = True
         res_path = sorted(res_path)
         for path in res_path:res_model_fn.append(os.path.splitext(os.path.basename(path))[0])
+    #print(res_path,res_model_fn)
+    
     
     # save into matrix all predictions info from all txt files within fx input
     total_txt = len(res_path) ;i=0
     res_list_full = [[() for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
     res_list_max = [[0.0 for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
     res_list_fn = [['' for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
+    res_list_path = [['' for i in range(total_txt)] for j in range(buf_count_newlines_gen(res_path[i]))]
     #print(np.shape(res_list_full))
     
     for txt_i in range(total_txt):
-        print('OPENING',res_path[txt_i])
+        #print('OPENING',res_path[txt_i])
         txt = open(res_path[txt_i],'r')
         txt_data = txt.read()
         txt.close()
@@ -343,8 +346,11 @@ def get_results_from_txt(fldr_or_file):
         #print(video_list)
         for video_j in range(len(video_list)):
             aux_line = str(video_list[video_j]).replace('[','').replace(']','').replace(' ','').split('|')
-            #print(aux_line[1])
-            res_list_fn[video_j][txt_i] = aux_line[0]
+            #print('aux_line[0]',aux_line[0].replace("'",""))
+            #res_list_fn[video_j][txt_i] = aux_line[0]
+            res_list_fn[video_j][txt_i] = aux_line[0].replace("'","")
+            res_list_path[video_j][txt_i] = SERVER_TEST_PATH+'/'+aux_line[0].replace("'","")
+            #print(SERVER_TEST_PATH+'/'+aux_line[0].replace("'",""))
             res_list_max[video_j][txt_i] = float(aux_line[1])
             
             aux2_line = aux_line[2].replace(' ','').replace("'","").replace('(','').replace(')','').split(',')
@@ -371,13 +377,15 @@ def get_results_from_txt(fldr_or_file):
     
     # text
     for i in range(total_txt):
-        print("\nresults for",res_model_fn_strap[i])
+        if printt:print("\nresults for",res_model_fn_strap[i])
         res_col = [col[i] for col in res_list_max]
         labels_col = [col[i] for col in res_list_labels]
-        ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col)
+        #for ii in range(len(res_col)):
+        #    if(res_col[ii]<0.5)and(labels_col[ii]==1):print(res_col[ii])
+        ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col,printt)
 
     # table only when all rslt fld as input
-    if table:
+    if tablee:
         table = PrettyTable()
         table.add_column("MODEL", res_model_fn_strap)
         metrics = ["Accuracy","Precision","Recall","AUPRC-AP","AUROC","F1-score"]
@@ -389,10 +397,10 @@ def get_results_from_txt(fldr_or_file):
                 ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col,False)
                 new_tbl_col.append("{:.4f}".format(ress[i]))
             table.add_column(metrics[i], new_tbl_col)
-        print(table)
+        if printt:print(table)
     
-    return res_list_full,res_list_max,res_list_fn,res_list_labels,res_path,res_model_fn,res_model_fn_strap
-
+    return res_list_full,res_list_max,res_list_fn,res_list_path,res_list_labels,res_path,res_model_fn,res_model_fn_strap
+    #return res_list
 
 #------------------------------------------------------------#
 # hist.csv
@@ -567,7 +575,7 @@ def get_histplot_from_csv(fldr_or_file,versus=False,save=False,show=True,run=Non
 
 #------------------------------------------------------------#
 
-
+ 
 """ GELU """
 #https://keras.io/guides/distributed_training/
 #strategy = tf.distribute.MirroredStrategy()

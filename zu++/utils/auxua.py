@@ -42,44 +42,8 @@ def set_2wdpath_var():
     WEIGHTS_PATH = BASE_VIGIA_DIR+"/zhen++/parameters_saved"
     RSLT_PATH = BASE_VIGIA_DIR+'zhen++/parameters_results/original_bt'
     
-
-#--------------------------------------------------------#
-# GPU TF CONFIGURATION
-# https://www.tensorflow.org/guide/gpu 
-# https://www.tensorflow.org/api_docs/python/tf/config/experimental/set_memory_growth
-
-def set_memory_growth():
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        print("\nAvaiable GPU's",gpus)
-        try:
-            # Currently, memory growth needs to be the same across GPUs
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
-            
-            logical_gpus = tf.config.list_logical_devices('GPU')
-            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-        except RuntimeError as e:
-            # Memory growth must be set before GPUs have been initialized
-            print(e)
-
-def set_tf_loglevel(level):
-    if level >= logging.FATAL:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    if level >= logging.ERROR:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-    if level >= logging.WARNING:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
-    else:
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
-    logging.getLogger('tensorflow').setLevel(level)
-
-    gpus = tf.config.list_physical_devices('GPU')
-    print("Num GPUs Available: ", len(gpus));
-    for i in range(len(gpus)) :print(str(gpus[i]))
-
-
-
+    
+    
 #--------------------------------------------------------#
 # FILE ND FOLDERS NAMING
 
@@ -127,7 +91,11 @@ def sort_txt_abc(fldr_or_file):
 #--------------------------------------------------------#
 # XD VIOLENCE DATASET INFO
 
-def load_xdv_test(aac_path):
+def load_xdv_test(aac_path=''):
+    '''
+        load mp4 paths for test videos
+        if aac path given, aac test audio paths arre returned
+    '''
     mp4_paths, mp4_labels = [],[]
     for root, dirs, files in os.walk(SERVER_TEST_PATH):
         for file in files:
@@ -138,41 +106,65 @@ def load_xdv_test(aac_path):
         if 'label_A' in  file:mp4_labels.append(0)
         else:mp4_labels.append(1)
     
-    print('acc_path',aac_path)
-    aac_paths, aac_labels = [],[]                            
-    for root, dirs, files in os.walk(aac_path):
-        for file in files:
-            if file.find('.aac') != -1:
-                aac_paths.append(os.path.join(root, file))
-    aac_paths.sort()
-    for i in range(len(aac_paths)):               
-        if 'label_A' in  file:aac_labels.append(0)
-        else:aac_labels.append(1)                
+    aac_paths, aac_labels = [],[] 
+    if aac_path:
+        print('aac_path',aac_path)
+                      
+        for root, dirs, files in os.walk(aac_path):
+            for file in files:
+                if file.find('.aac') != -1:
+                    aac_paths.append(os.path.join(root, file))
+        aac_paths.sort()
+        for i in range(len(aac_paths)):               
+            if 'label_A' in  file:aac_labels.append(0)
+            else:aac_labels.append(1)       
     
     return mp4_paths,mp4_labels,aac_paths,aac_labels
 
-def get_xdv_info(path,test=False,train=False):
-    data = '';aux=0;total=0;line='';txt_fn='';
-    for root, dirs, files in os.walk(path):
+def load_xdv_train():
+    mp4_paths, mp4_labels = [],[]
+    for root, dirs, files in os.walk(SERVER_TRAIN_PATH):
         for file in files:
             if file.find('.mp4') != -1:
-                fname, fext = os.path.splitext(file)
-                video = cv2.VideoCapture(os.path.join(root,file))
-                frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
-                fps = video.get(cv2.CAP_PROP_FPS)
-                video_time = frames/fps
-                video.release()
+                mp4_paths.append(os.path.join(root, file))
+    mp4_paths.sort()
+    for i in range(len(mp4_paths)):            
+        if 'label_A' in  file:mp4_labels.append(0)
+        else:mp4_labels.append(1)
+    
+    return mp4_paths,mp4_labels
 
-                aux+=1;total+=frames
 
-                line=str(round(frames))+' frames | '+str(round(video_time))+' secs | '+fname+'\n'
-                data+=line
-                print(line)
+def get_xdv_info(test=False,train=False):
+    " 'test' or 'train' "
+    
+    if test:
+        mp4_paths,mp4_labels,*_ = load_xdv_test()
+        txt_fn = '/raid/DATASETS/.zuble/vigia/zu++/dataset-xdv-info/test.txt'
+    elif train:
+        mp4_paths,mp4_labels = load_xdv_train()
+        txt_fn = '/raid/DATASETS/.zuble/vigia/zu++/dataset-xdv-info/train.txt'
+    else: raise Exception("not a valid string")
+    print(np.shape(mp4_paths))
+
+    data = '';aux=0;total=0;line='';
+    for path in mp4_paths:
+        fname = os.path.splitext(os.path.basename(path))[0]
+        video = cv2.VideoCapture(path)
+        frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
+        fps = video.get(cv2.CAP_PROP_FPS)
+        video_time = frames/fps
+        video.release()
+
+        aux+=1;total+=frames
+
+        line=str(round(frames))+' frames | '+str(round(video_time))+' secs | '+fname+'\n'
+        data+=line
+        print(line)
 
     line = "\nmean of frames per video: "+str(total/aux)
     data+=line
-    if test: txt_fn = '/raid/DATASETS/.zuble/vigia/aux/.xdv_info/test.txt'
-    if train: txt_fn = '/raid/DATASETS/.zuble/vigia/aux/.xdv_info/train.txt'
+
     f = open(txt_fn, 'w')        
     f.write(data)
     f.close()  

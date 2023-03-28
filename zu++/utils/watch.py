@@ -90,6 +90,7 @@ def get_as_total_from_res_list(res_list,txt_i):
     
     return as_total
 
+
 def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
     global is_quit, is_paused, frame_counter
     
@@ -134,8 +135,7 @@ def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
         ord(' '): pause_key_action
     }
     def key_action(_key):
-        if _key in key_action_dict:
-            key_action_dict[_key]()
+        if _key in key_action_dict:key_action_dict[_key]()
             
     prev_time = time.time() # Used to track real fps
     is_quit = False         # Used to signal that quit is called
@@ -172,7 +172,7 @@ def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
             cv2.imshow(window_name,frame)
 
             # Wait for any key press and pass it to the key action
-            frame_time_ms = int(1000/fps)
+            frame_time_ms = int(1000/fps)#print(frame_time_ms,fps)
             key = cv2.waitKey(frame_time_ms)
             key_action(key)
             

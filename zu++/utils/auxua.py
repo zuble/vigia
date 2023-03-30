@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 import sklearn
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix , accuracy_score , f1_score , precision_score , average_precision_score , roc_auc_score , recall_score
 from IPython import display
 from prettytable import PrettyTable
 
@@ -206,7 +206,7 @@ METRICS/RESULTS CALCULUS
 https://www.tensorflow.org/tutorials/structured_data/imbalanced_data 
 """
 
-def plot_cm(name,labels,predictions,threshold=0.5):
+def plot_cm(name,labels,predictions,threshold=0.5,save=False):
     '''
     https://www.tensorflow.org/tutorials/structured_data/imbalanced_data#download_the_kaggle_credit_card_fraud_data_set
     '''
@@ -218,7 +218,7 @@ def plot_cm(name,labels,predictions,threshold=0.5):
     plt.title('Confusion matrix @{:.2f}'.format(threshold))
     plt.ylabel('Actual label')
     plt.xlabel('Predicted label')
-    plt.savefig(name+'.png',facecolor='white', transparent=False)
+    if save: plt.savefig(name+'.png',facecolor='white', transparent=False)
     plt.show()
 
 def plot_roc(name, labels, predictions, **kwargs):
@@ -253,37 +253,46 @@ def plot_prc(name, labels, predictions, **kwargs):
     plt.savefig(name+'.png',facecolor='white', transparent=False)
     plt.show()
 
-def get_cm_accuracy_precision_recall_f1(labels, predictions,printt=True):
-    #plot_cm()
-
-    acc = tf.metrics.BinaryAccuracy()
-    acc.update_state(labels, predictions)
-    acc_res = acc.result().numpy()
-    if printt:print("\tACCURACY  ",acc_res)
-
-    pre = tf.keras.metrics.Precision(thresholds = 0.5)
-    pre.update_state(labels, predictions)
-    pre_res = pre.result().numpy()
-    if printt:print("\tPRECISION (%% of True 1 out of all Positive predicted) ",pre_res)
+def get_cm_accuracy_precision_recall_f1(model_name,labels, predictions,printt=True,plot=False,save_plot=False):
     
-    rec = tf.keras.metrics.Recall(thresholds=0.5)
-    rec.update_state(labels, predictions)
-    rec_res = rec.result().numpy()
+
+    predictions_binary = [1 if p >= 0.5 else 0 for p in predictions]
+    
+    if plot:
+        plot_cm(str(model_name),labels, predictions_binary, save=save_plot)
+    
+    #acc = tf.metrics.BinaryAccuracy()
+    #acc.update_state(labels, predictions)
+    #acc_res = acc.result().numpy()
+    acc_res = accuracy_score(labels, predictions_binary)
+    if printt:print("\tACCURACY  %.4f"% acc_res)
+
+    #pre = tf.keras.metrics.Precision(thresholds = 0.5)
+    #pre.update_state(labels, predictions)
+    #pre_res = pre.result().numpy()
+    pre_res = precision_score(labels, predictions_binary)
+    if printt:print("\tPRECISION (%% of True 1 out of all Positive predicted) %.4f"% pre_res)
+    
+    #rec = tf.keras.metrics.Recall(thresholds=0.5)
+    #rec.update_state(labels, predictions)
+    #rec_res = rec.result().numpy()
+    rec_res = recall_score(labels, predictions_binary)
     if printt:print("\tRECALL (%% of True Positive out of all actual anomalies) ",rec_res)
     
     #https://glassboxmedicine.com/2019/03/02/measuring-performance-auprc/
-    auprc_ap = sklearn.metrics.average_precision_score(labels, predictions)
-    aucroc = sklearn.metrics.roc_auc_score(labels, predictions)
+    auprc_ap = average_precision_score(labels, predictions)
+    aucroc = roc_auc_score(labels, predictions)
     if printt:print("\tAUPRC ( AreaUnderPrecisionRecallCurve ) %.4f \n\t AUC-ROC %.4f "% (auprc_ap, aucroc))
     
     #https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
     #import tensorflow_addons as tfa
     #f1 = tfa.metrics.F1Score(num_classes=2, threshold=0.5)
     #f1.update_state(labels, predictions)
-    f1_res = 2*((pre_res*rec_res)/(pre_res+rec_res+K.epsilon()))
-    if printt:print("\tF1_SCORE (harmonic mean of precision and recall) ",f1_res)
+    f1_res1 = f1_score(labels, predictions_binary)
+    f1_res2 = 2*((pre_res*rec_res)/(pre_res+rec_res+K.epsilon()))
+    if printt:print("\tF1_SCORE (harmonic mean of precision and recall)  %.4f %.4f "% (f1_res1,f1_res2))
     
-    return (acc_res,pre_res,rec_res,auprc_ap,aucroc,f1_res)
+    return (acc_res,pre_res,rec_res,auprc_ap,aucroc,f1_res1)
 
 
 def buf_count_newlines_gen(fname):
@@ -298,7 +307,7 @@ def buf_count_newlines_gen(fname):
         count = sum(buf.count(b"\n") for buf in _make_gen(f.raw.read))
     return count
 
-def get_results_from_txt(fldr_or_file,printt=True):
+def get_results_from_txt(fldr_or_file,printt=True,plot=False,save_plot=False):
     
     res_path = [];res_model_fn = [] 
     #FILE
@@ -374,7 +383,8 @@ def get_results_from_txt(fldr_or_file,printt=True):
         labels_col = [col[i] for col in res_list_labels]
         #for ii in range(len(res_col)):
         #    if(res_col[ii]<0.5)and(labels_col[ii]==1):print(res_col[ii])
-        ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col,printt)
+        ress = get_cm_accuracy_precision_recall_f1(res_model_fn_strap[i],labels_col,res_col,printt,plot,save_plot)
+
 
     # table only when all rslt fld as input
     if tablee:
@@ -386,7 +396,7 @@ def get_results_from_txt(fldr_or_file,printt=True):
             for j in range(total_txt):
                 res_col = [col[j] for col in res_list_max]
                 labels_col = [col[j] for col in res_list_labels]
-                ress = get_cm_accuracy_precision_recall_f1(labels_col,res_col,False)
+                ress = get_cm_accuracy_precision_recall_f1('',labels_col,res_col,printt=False)
                 new_tbl_col.append("{:.4f}".format(ress[i]))
             table.add_column(metrics[i], new_tbl_col)
         if printt:print(table)

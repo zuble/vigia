@@ -15,7 +15,7 @@ import utils.auxua as aux
 def set_memory_growth():
     gpus = tf.config.list_physical_devices('GPU')
     if gpus:
-        print("\nAvaiable GPU's",gpus)
+        #print("\nAvaiable GPU's",gpus)
         try:
             # Currently, memory growth needs to be the same across GPUs
             for gpu in gpus:
@@ -39,8 +39,8 @@ def set_tf_loglevel(level):
     logging.getLogger('tensorflow').setLevel(level)
 
     gpus = tf.config.list_physical_devices('GPU')
-    print("Num GPUs Available: ", len(gpus));
-    for i in range(len(gpus)) :print(str(gpus[i]))
+    print("Num GPUs Available: ", len(gpus))
+    #for i in range(len(gpus)) :print(str(gpus[i]))
 
 
 #---------------------------#
@@ -127,22 +127,6 @@ def gelu(x):
 #get_custom_objects().update({'gelu': Activation(gelu)})
 
 
-def init_test_model(params,run=None):
-    ''' returns model with params in config present in name over aux.WEIGHTS_PATH'''
-    
-    model = form_model(params)
-    
-    find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
-    para_file_name, para_file_path = find_h5(aux.WEIGHTS_PATH,find_string,ruii=False)
-    
-    model.load_weights(para_file_path[0])
-    
-    print("\n\tWEIGHTS from ", '/'+os.path.split(os.path.split(para_file_path[0])[0])[1]+'/'+os.path.split(para_file_path[0])[1])
-    if run:run["test/model_name"] = para_file_name[0]
-    
-    return model , para_file_name[0]
-
-
 in_height = 120; in_width = 160
 def form_model(params):
     print("\nFORM_MODEL\n")
@@ -210,3 +194,21 @@ def form_model(params):
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
     
     return model
+
+
+def init_test_model(params,run=None):
+    ''' returns model with params in config present in name over aux.WEIGHTS_PATH'''
+    
+    model = form_model(params)
+    
+    find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
+    para_file_name, para_file_path = find_h5(aux.WEIGHTS_PATH,find_string,ruii=False)
+    
+    model.load_weights(para_file_path[0])
+    
+    print("\n\tWEIGHTS from ", '/'+os.path.split(os.path.split(para_file_path[0])[0])[1]+'/'+os.path.split(para_file_path[0])[1])
+    if run:run["test/model_name"] = para_file_name[0]
+    
+    return model , para_file_name[0]
+
+

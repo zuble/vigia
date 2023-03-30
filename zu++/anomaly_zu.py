@@ -14,10 +14,12 @@ print("tf",tf.version.VERSION)
 #os.system("nvcc --version\n")
 os.system("conda list | grep -E 'tensorflow|cudnn|cudatoolkit|numpy'")
 
-from tensorflow import keras
-from keras import backend as K
+#from tensorflow import keras
+#from keras import backend as K
+
 #from keras import models, layers, backend as K
 #from keras.layers import Activation
+
 from tensorflow.keras.callbacks import ModelCheckpoint
 #from tensorflow.keras.utils import get_custom_objects
 #from keras.utils.generic_utils import get_custom_objects
@@ -29,14 +31,16 @@ import neptune
 from neptune.integrations.tensorflow_keras import NeptuneCallback
 
 import utils.auxua as aux
+import utils.tf_formh5 as tf_formh5
 
 # %%
 ''' GPU CONFIGURATION '''
 
-aux.set_tf_loglevel(logging.ERROR)
-aux.tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
-
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+tf_formh5.set_tf_loglevel(logging.ERROR)
+tf_formh5.tf.debugging.set_log_device_placement(True) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
+tf_formh5.set_memory_growth()
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
 
 # %%
 ''' NEPTUNE '''
@@ -399,352 +403,9 @@ def input_test_video_data(file_name,config,batch_no=0):
     #return tf.expand_dims(batch_frames_tensor,0), batch_imgs, divid_no, total_frame, passby, fps
     return np.expand_dims(batch_frames,0), batch_imgs, divid_no, total_frame, passby, fps
 
-def watch_test(predict_total,test_files):
-    global is_quit, is_paused, frame_counter
-    for k in range(len(test_files)):
-        
-        file_path = test_files[k]
-        video = cv2.VideoCapture(str(file_path))
-        
-        window_name = "anoml vwr"+str(k)+":"+file_path.replace('/media/jtstudents/HDD/.zuble/xdviol/test','')
-        cv2.namedWindow(window_name)
-        
-        # Video information
-        fps = video.get(cv2.CAP_PROP_FPS)
-        width  = video.get(cv2.CAP_PROP_FRAME_WIDTH)
-        height = video.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        total_frame = video.get(cv2.CAP_PROP_FRAME_COUNT)
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        
-        # We can set up keys to pause, go back and forth.
-        # **params can be used to pass parameters to key actions.
-        def quit_key_action(**params):
-            global is_quit
-            is_quit = True
-        def rewind_key_action(**params):
-            global frame_counter
-            frame_counter = max(0, int(frame_counter - (fps * 5)))
-            video.set(cv2.CAP_PROP_POS_FRAMES, frame_counter)
-        def forward_key_action(**params):
-            global frame_counter
-            frame_counter = min(int(frame_counter + (fps * 5)), total_frame - 1)
-            video.set(cv2.CAP_PROP_POS_FRAMES, frame_counter)
-        def pause_key_action(**params):
-            global is_paused
-            is_paused = not is_paused
-        # Map keys to buttons
-        key_action_dict = {
-            ord('q'): quit_key_action,
-            ord('a'): rewind_key_action,
-            ord('d'): forward_key_action,
-            ord('s'): pause_key_action,
-            ord(' '): pause_key_action
-        }
-        def key_action(_key):
-            if _key in key_action_dict:
-                key_action_dict[_key]()
-                
-        prev_time = time.time() # Used to track real fps
-        is_quit = False         # Used to signal that quit is called
-        is_paused = False       # Used to signal that pause is called
-        
-        frame_counter = 0       # Used to track which frame are we.
-        batch_in_video = predict_total[k][0]
-        predict_atual = ()
-        try:
-            while video.isOpened():
-                # If the video is paused, we don't continue reading frames.
-                if is_quit:
-                    # Do something when quiting
-                    break
-                elif is_paused:
-                    # Do something when paused
-                    pass
-                else:
-                    sucess, frame = video.read() # Read the frames
-                    if not sucess:break
-
-                    frame_counter = int(video.get(cv2.CAP_PROP_POS_FRAMES))
-                                        
-                    if batch_in_video == 1: predict_atual = predict_total[k][2]
-                    #(2, 4001, 0.99958295, 661, 4661, 0.98756117))
-                    if batch_in_video == 2:
-                        #<661 as=0.999
-                        if frame_counter < predict_total[k][3]: predict_atual = predict_total[k][2]
-                        # > 661 and < 4000 as: 0.999 | 0.987
-                        elif frame_counter < predict_total[k][1]: predict_atual = predict_total[k][2] , predict_total[k][5]
-                        # > 4000 as: 0.987
-                        else: predict_atual = predict_total[k][5]
-                    #(3, 4001, 0.99958295, 4001, 8000, 0.98756117,4500,8500,0.836))
-                    if batch_in_video == 3:
-                        #<4000 as=0.999
-                        if frame_counter < predict_total[k][1]: predict_atual = predict_total[k][2]
-                        #< 4500 as=0.987
-                        elif frame_counter < predict_total[k][6]: predict_atual = predict_total[k][5]
-                        #< 8000 as=0.987 | 0.836
-                        elif frame_counter < predict_total[k][4]: predict_atual = predict_total[k][5] , predict_total[k][8]
-                        # > 8000 as=0.836
-                        else:predict_atual = predict_total[k][8]
-                    #(4, 4001,0.99958295, 4001,8000,0.98756117, 8000,12000,0.836, 8500,12500,0.888))    
-                    if batch_in_video == 4:
-                        #<4000 as=0.999
-                        if frame_counter < predict_total[k][1]: predict_atual = predict_total[k][2]
-                        #<8000 as=0.987
-                        elif frame_counter < predict_total[k][4]: predict_atual = predict_total[k][5]
-                        #< 8500 as=0.836
-                        elif frame_counter < predict_total[k][9]: predict_atual = predict_total[k][8]
-                        #< 12000 as=0.836 / 0.888
-                        elif frame_counter < predict_total[k][7]: predict_atual = predict_total[k][8] , predict_total[k][11]
-                        # > 8000 as=0.836
-                        else:predict_atual = predict_total[k][11]
-                    #(5, 4001,0.99958295, 4001,8000,0.98756117, 8000,12000,0.836, 12000,16000,0.888, 12500,16500,0.777))
-                    if batch_in_video == 5:
-                        #<4000 as=0.999
-                        if frame_counter < predict_total[k][1]: predict_atual = predict_total[k][2]
-                        #<8000 as=0.987
-                        elif frame_counter < predict_total[k][4]: predict_atual = predict_total[k][5]
-                        #< 12000 as=0.836
-                        elif frame_counter < predict_total[k][7]: predict_atual = predict_total[k][8]
-                        #< 12500 as=0.888
-                        elif frame_counter < predict_total[k][12]: predict_atual = predict_total[k][11]
-                        #<16000 as:0.888 | 0.777
-                        elif frame_counter < predict_total[k][10]: predict_atual = predict_total[k][11] , predict_total[k][14]
-                        # >16000 as=0.777
-                        else:predict_atual = predict_total[k][14]
-                    #(6, 4001,0.99958295, 4001,8000,0.98756117, 8000,12000,0.836, 12000,16000,0.888, 16000,20000,0.777, 16500,20500,0.5))
-                    if batch_in_video == 6:
-                        #<4000 as=0.999
-                        if frame_counter < predict_total[k][1]: predict_atual = predict_total[k][2]
-                        #<8000 as=0.987
-                        elif frame_counter < predict_total[k][4]: predict_atual = predict_total[k][5]
-                        #< 12000 as=0.836
-                        elif frame_counter < predict_total[k][7]: predict_atual = predict_total[k][8]
-                        #<16000 as=0.888
-                        elif frame_counter < predict_total[k][10]: predict_atual = predict_total[k][11]
-                        #<16500 as:0.777
-                        elif frame_counter < predict_total[k][15]: predict_atual = predict_total[k][14]
-                        #<20000 as:0.777 | 0.5
-                        elif frame_counter < predict_total[k][13]: predict_atual = predict_total[k][14] , predict_total[k][17]
-                        #>20000 as=0.5
-                        else:predict_atual = predict_total[k][17]
-                    #(7, 4001,0.99958295, 4001,8000,0.98756117, 8000,12000,0.836, 12000,16000,0.888, 16000,20000,0.777, 20000,24000,0.5, 20500,24500,0.6))
-                    if batch_in_video == 7:
-                        #<4000 as=0.999
-                        if frame_counter < predict_total[k][1]: predict_atual = predict_total[k][2]
-                        #<8000 as=0.987
-                        elif frame_counter < predict_total[k][4]: predict_atual = predict_total[k][5]
-                        #< 12000 as=0.836
-                        elif frame_counter < predict_total[k][7]: predict_atual = predict_total[k][8]
-                        #<16000 as=0.888
-                        elif frame_counter < predict_total[k][10]: predict_atual = predict_total[k][11]
-                        #<20000 as=0.777
-                        elif frame_counter < predict_total[k][13]: predict_atual = predict_total[k][14]
-                        #<20500 as:0.5
-                        elif frame_counter < predict_total[k][18]: predict_atual = predict_total[k][17]
-                        #<24000 as:0.5 | 0.6
-                        elif frame_counter < predict_total[k][16]: predict_atual = predict_total[k][17] , predict_total[k][20]
-                        #>24000 as=0.6
-                        else:predict_atual = predict_total[k][20]
-                    #(8, 4001,0.2, 4001,8000,0.5, 8000,12000,0.8, 12000,16000,0.11, 16000,20000,0.14, 20000,24000,0.17, 24000,28000,0.20, 24500.28500,0.23))
-                    if batch_in_video == 8:
-                        #<4000 as=0.2
-                        if frame_counter < predict_total[k][1]: predict_atual = predict_total[k][2]
-                        #<8000 as=0.5
-                        elif frame_counter < predict_total[k][4]: predict_atual = predict_total[k][5]
-                        #< 12000 as=0.8
-                        elif frame_counter < predict_total[k][7]: predict_atual = predict_total[k][8]
-                        #<16000 as=0.11
-                        elif frame_counter < predict_total[k][10]: predict_atual = predict_total[k][11]
-                        #<20000 as=0.14
-                        elif frame_counter < predict_total[k][13]: predict_atual = predict_total[k][14]
-                        #<24000 as:0.17
-                        elif frame_counter < predict_total[k][16]: predict_atual = predict_total[k][17]
-                        #<24500 as:0.20
-                        elif frame_counter < predict_total[k][21]: predict_atual = predict_total[k][20]
-                        #<28000 as:0.20 | 0.23
-                        elif frame_counter < predict_total[k][19]: predict_atual = predict_total[k][20] , predict_total[k][23]
-                        #>28000 as=0.23
-                        else:predict_atual = predict_total[k][23]                    
-                    
-                    
-                    '''
-                    for current frame, check all visible items
-                    if str(frame_counter) in data_frames:
-                        for item in data_frames[str(frame_counter)]:
-                            item_id = item['visibleObjectId']
-                            color = colormap.get_color(item_id)
-                        
-                            # for visible item, get position at current frame and paint rectangle in
-                            if frame_counter in data_objects[item_id]:
-                                bbox = data_objects[item_id][frame_counter]['rectangle']
-                                x1 = bbox[0]['x']
-                                y1 = bbox[0]['y']
-                                x2 = x1 + bbox[0]['w']
-                                y2 = y1 + bbox[0]['h']
-                                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                                cv2.putText(frame, str(item_id[:3]), (x1, y1-10), font, 0.5, color, 2)
-                    '''
-                    
-                    print(predict_atual)
-                    
-                    # Display frame numba/AS/time/fps
-                    cv2.putText(frame, 'Frame: %d' % (frame_counter), (10, 10), font, 0.5, [60,250,250], 2)
-                    cv2.putText(frame, 'AS:'+str(predict_atual), (10, 30), font, 0.5, [80,100,250], 2)
-                    
-                    cv2.putText(frame, 'Time: %.4f' % (frame_counter/fps), (int(width*2/8), 10), font, 0.5, [100,250,10], 2)
-                    new_time = time.time()
-                    cv2.putText(frame, 'fps: %.2f' % (1/(new_time-prev_time)), (int(width*4/8), 10), font, 0.5, [0,50,200], 2)
-                    prev_time = new_time
-                    
-                # Display the image
-                cv2.imshow(window_name,frame)
-
-                # Wait for any key press and pass it to the key action
-                frame_time_ms = int(1000/fps)
-                key = cv2.waitKey(frame_time_ms)
-                key_action(key)
-                
-        finally:
-            video.release()
-            cv2.destroyAllWindows()
-
-    file_number =+ 1
 
 # %%
-""" MODEL """
-
-def all_operations(args):
-    x = args[0]
-    #tf.print(x.shape)
-    x = tf.reshape(x, [1, -1,x.shape[1]*x.shape[2]*x.shape[3]])
-    return x
-@tf.function
-def loss_category(y_true, y_pred):    
-    #tf.print(y_pred, y_true, 'Prediction')
-    cce = tf.keras.losses.categorical_crossentropy(y_true, y_pred)
-    return cce
-
-def gelu(x):
-    return 0.5*x*(1+tf.tanh(np.sqrt(2/np.pi)*(x+0.044715*tf.pow(x, 3))))
-#get_custom_objects().update({'gelu': Activation(gelu)})
-
-def find_h5(path,find_string,ruii):
-    '''
-        if find_string=('') it returns all .h5 files in path descarding subdiretories
-        if find_string=('str1','str2',..) it returns .h5 files with all str in name 
-    '''
-    if ruii:
-        import PySimpleGUI as sg
-        layout = [  [sg.Input(key="ckpt_h5" ,change_submits=True), sg.FileBrowse(key="browse",initial_folder=aux.MODEL_PATH)],
-                    [sg.Button("check")]  # identify the multiline via key option]
-                ]
-        window = sg.Window("h5ckpt", layout)
-        h5_pth=''
-        h5_fn=''
-        while True:
-            event, values = window.read()
-            if event in (sg.WIN_CLOSED, 'Exit'):
-                break
-            elif event == "check":
-                h5_pth = values["ckpt_h5"]
-                
-        window.close()
-        h5_fn = os.path.basename(h5_pth)
-        return h5_fn,h5_pth
-    if not ruii:
-        h5_fn = []
-        h5_pth = []
-
-        for root, dirs, files in os.walk(path):
-            if len(find_string) == 0:
-                for fil in files:
-                    fname, fext = os.path.splitext(fil)
-                    if fext == ".h5":
-                        h5_pth.append(os.path.join(root, fil))
-                        h5_fn.append(fname)
-                break
-            else:
-                for fil in files:
-                    fname, fext = os.path.splitext(fil)    
-                    aux = 0
-                    for i in range(len(find_string)):    
-                        if str(find_string[i]) in fname:aux = aux + 1
-                    if fext == ".h5" and aux == len(find_string):
-                        h5_pth.append(os.path.join(root, fil))
-                        h5_fn.append(fname)
-    
-        if not h5_fn:
-            raise Exception("no h5 file with ",find_string,"in ",path)              
-    return h5_fn, h5_pth
-
-def form_model(params):
-    print("\nFORM_MODEL\n")
-    image_input = keras.Input(shape=(None, in_height, in_width, 3))
-    #Freeze the batch normalization
-    
-    #https://www.tensorflow.org/api_docs/python/tf/keras/activations
-    #https://www.tensorflow.org/api_docs/python/tf/nn/leaky_relu
-    if params["ativa"]=='leakyrelu': ativa = keras.layers.LeakyReLU()
-    elif params["ativa"]=='gelu': ativa = gelu
-    elif params["ativa"]=='relu': ativa = 'relu'
-    else: raise Exception("no ativa named assim")
-
-    c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
-    #c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) #another way
-    c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
-    c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation=ativa)(c3d_pooling1)
-    c3d_pooling2 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer2)
-    c3d_layer3 = keras.layers.Conv3D(16,(8,3,3), activation=ativa)(c3d_pooling2)
-    c3d_pooling3 = keras.layers.MaxPooling3D((4,2,2))(c3d_layer3)
-    #c3d_layer4 = keras.layers.Conv3D(32,(2,3,3), activation=activa)(c3d_pooling3)
-    #c3d_pooling4 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer4)
-    
-    feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3) #flatten spatial features to time series
-    
-    lstm1 = keras.layers.LSTM(1024,input_shape=(1200,feature_conv_4.shape[2]), return_sequences=True)(feature_conv_4)
-    #lstm2 = keras.layers.LSTM(512, return_sequences=True)(lstm1)
-    global_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
-    
-    #ADD THE AUDIO FEATURE HERE 
-    
-    dense_1 = keras.layers.Dense(128, activation=ativa)(global_feature)
-    #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
-    soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
-    
-    model = keras.Model(inputs=[image_input], outputs=[soft_max])
-    #model.summary()
-   
-   
-    #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
-    #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
-    if params["optima"]=='sgd':optima = keras.optimizers.SGD(learning_rate = 0.0002)
-    elif params["optima"]=='adam':optima = keras.optimizers.Adam(learning_rate = 0.0002)
-    elif params["optima"]=='adamamsgrad':optima = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
-    else: raise Exception("no optima named assim")
-
-    METRICS = [
-        keras.metrics.TruePositives(name='tp'),
-        keras.metrics.FalsePositives(name='fp'),
-        keras.metrics.TrueNegatives(name='tn'),
-        keras.metrics.FalseNegatives(name='fn'), 
-        keras.metrics.BinaryAccuracy(name='accuracy'),
-        keras.metrics.Precision(name='precision'),
-        keras.metrics.Recall(name='recall'),
-        keras.metrics.AUC(name='auc'),
-        keras.metrics.AUC(name='prc', curve='PR'), # precision-recall curve
-    ]
-
-    model.compile(optimizer=optima, 
-                    loss= 'binary_crossentropy', 
-                    #loss_weights = class_weights,
-                    #metrics=['accuracy']
-                    metrics=METRICS)
-    
-    print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
-    
-    return model
-
-#---------------------------------------------------------------#
+''' TRAIN FX '''
 
 def train_model(model,config,ckptgui=False):
     '''
@@ -756,12 +417,12 @@ def train_model(model,config,ckptgui=False):
     #start from ckpt .h5
     if int(config["ckpt_start"]):  #aux = f"{34:0>8}"; if int(aux): print(type(aux), aux)
         if ckptgui:
-            model_h5ckpt, model_h5ckpt_path = find_h5(aux.CKPT_PATH,find_string=(),ruii=True)
+            model_h5ckpt, model_h5ckpt_path = tf_formh5.find_h5(aux.CKPT_PATH,find_string=(),ruii=True)
             model_h5ckpt = os.path.splitext(model_h5ckpt)[0]
             model.load_weights(model_h5ckpt_path)
         else:
             find_string=[config["ativa"]+'_'+config["optima"]+'_'+str(config["batch_type"])+'_'+config["frame_max"],config["ckpt_start"]]
-            model_h5ckpt, model_h5ckpt_path = find_h5(aux.CKPT_PATH,find_string,ruii=False)
+            model_h5ckpt, model_h5ckpt_path = tf_formh5.find_h5(aux.CKPT_PATH,find_string,ruii=False)
 
             model.load_weights(model_h5ckpt_path[0])
             print("\n\tWEIGHTS from ckpt", '/'+os.path.split(os.path.split(model_h5ckpt_path[0])[0])[1]+'/'+os.path.split(model_h5ckpt_path[0])[1])
@@ -828,24 +489,15 @@ def train_model(model,config,ckptgui=False):
         
     return model
 
-#---------------------------------------------------------------#
-
-def init_test_model(params):
-    model = form_model(params)
-    
-    find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
-    para_file_name, para_file_path = find_h5(aux.WEIGHTS_PATH,find_string,ruii=False)
-    
-    model.load_weights(para_file_path[0])
-    
-    print("\n\tWEIGHTS from ", '/'+os.path.split(os.path.split(para_file_path[0])[0])[1]+'/'+os.path.split(para_file_path[0])[1])
-    run["test/model_name"] = para_file_name[0]
-    
-    return model , para_file_name[0]
-
+# %%
+''' TEST FX '''
 #@tf.function
 #def predict(model,input):
 #    return model.predict(input)#.eval()[0][0]
+
+@tf.function
+def as_predict(x):
+    return model(x, training=False)    
 
 def test_model(model,model_name,config,files=test_fn):
     print("\n\nTEST MODEL\n")
@@ -878,7 +530,8 @@ def test_model(model,model_name,config,files=test_fn):
             
             #prediction on frist batch
             start_predict1 = time.time()
-            predict_aux = model.predict(batch_frames)[0][0]
+            #predict_aux = model.predict(batch_frames)[0][0]
+            predict_aux = as_predict(batch_frames)[0][0].numpy()
             #predict_aux = predict(model,batch_frames) #using tf.function
             #predict_aux = model(batch_frames,training=False)[0][0]
             end_predict1 = time.time()
@@ -898,7 +551,8 @@ def test_model(model,model_name,config,files=test_fn):
                 
                 #nésimo batch prediction
                 start_predict2 = time.time()
-                predict_aux = model.predict(batch_frames)[0][0]
+                predict_aux = as_predict(batch_frames)[0][0].numpy()
+                #predict_aux = model.predict(batch_frames)[0][0]
                 #predict_aux = predict(model,batch_frames) #using tf.function
                 end_predict2 = time.time()
                 time_batch_predict = end_predict2 - start_predict2
@@ -948,6 +602,7 @@ def test_model(model,model_name,config,files=test_fn):
     
     return predict_total_max, predict_total
 
+
 # %% [markdown]
 # #### TRAIN
 
@@ -962,13 +617,14 @@ train_config = {
     "ckpt_start" : f"{9:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
     "epochs" : 21
 }
-run["train/config_train"].append(train_config)
+#run["train/config_train"].append(train_config)
 
-model = form_model(train_config)
+#model = tf_formh5.form_model(train_config)
 
 # %%
 """ TRAIN """
-model = train_model(model,train_config)
+
+#model = train_model(model,train_config)
 
 # %% [markdown]
 # #### TEST
@@ -977,29 +633,30 @@ model = train_model(model,train_config)
 ''' INIT TEST MODEL '''
 
 wght4test_config = {
-    "ativa" : 'relu',
-    "optima" : 'sgd',
+    "ativa" : 'leakyrelu',
+    "optima" : 'adamamsgrad',
     "batch_type" : 0, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
     "frame_max" : '4000'
 }
+
 #run["test/config_wght4test"].append(wght4test_config)
 
-#model, model_name = init_test_model(wght4test_config)
+model, model_name = tf_formh5.init_test_model(wght4test_config)
 
 # %%
 ''' TEST '''
 
 test_config = {
-    "batch_type" : 2, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '240' 
+    "batch_type" : 1, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
+    "frame_max" : '1000' 
 }
 #run["test/config_test"].append(test_config)
 
-#predict_total_max, predict_total = test_model(model,model_name,test_config)
+predict_total_max, predict_total = test_model(model,model_name,test_config)
 
-
+# %%
 # TEST ALL WEIGHTS
-#weights_names , weights_paths = find_h5(aux.WEIGHTS_PATH,find_string=(''),ruii=False)
+#weights_names , weights_paths = h5_util.find_h5(aux.WEIGHTS_PATH,find_string=(''),ruii=False)
 #for j in range(len(weights_names)):print(weights_names[j])
 #for i in range(len(weights_paths)):
 #    #print(para_file_path[i])

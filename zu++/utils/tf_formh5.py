@@ -3,6 +3,7 @@ import numpy as np
 
 import tensorflow as tf
 from tensorflow import keras
+os.system("conda list | grep -E 'tensorflow|cudnn|cudatoolkit|numpy'")
 
 import utils.auxua as aux
 
@@ -39,7 +40,7 @@ def set_tf_loglevel(level):
     logging.getLogger('tensorflow').setLevel(level)
 
     gpus = tf.config.list_physical_devices('GPU')
-    print("Num GPUs Available: ", len(gpus))
+    print("\nNum GPUs Available: ", len(gpus))
     #for i in range(len(gpus)) :print(str(gpus[i]))
 
 

@@ -13,7 +13,7 @@ from prettytable import PrettyTable
 import tensorflow as tf
 from keras import backend as K
 
-import neptune
+#import neptune
 
 
 ''' PATH VARS '''
@@ -321,7 +321,7 @@ def get_results_from_txt(fldr_or_file,printt=True,plot=False,save_plot=False):
     else:
         if printt:print("FOLDER")
         for file in os.listdir(fldr_or_file):
-            if os.path.splitext(file)[1] == ".txt": #and file.find('weights') != -1
+            if os.path.splitext(file)[1] == ".txt" and os.path.getsize(os.path.join(fldr_or_file, file)) != 0: #and file.find('weights') != -1
                 res_path.append(os.path.join(fldr_or_file, file))
         tablee = True
         res_path = sorted(res_path)
@@ -489,7 +489,7 @@ def get_histplot_wo_val_from_csv(fldr_or_file,versus=False,save=False,show=True,
             plt.xlabel('epochs');plt.ylabel(strings[i])
             plt.legend();plt.title(strings[i]+' VS')
             
-            if run:run['train/hist_'+strings[i]+' VS'].upload(neptune.types.File.as_image(plt.gcf()))
+            #if run:run['train/hist_'+strings[i]+' VS'].upload(neptune.types.File.as_image(plt.gcf()))
             if save: plt.savefig(os.path.join(os.path.dirname(csv_path[0]),strings[i]+'.png'))
             if show:plt.show();
 

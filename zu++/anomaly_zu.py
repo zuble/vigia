@@ -1,5 +1,5 @@
 # %%
-import os, time, random, logging
+import os, time, random, logging , datetime
 import cv2
 import numpy as np
 import PySimpleGUI as sg
@@ -37,10 +37,10 @@ import utils.tf_formh5 as tf_formh5
 ''' GPU CONFIGURATION '''
 
 tf_formh5.set_tf_loglevel(logging.ERROR)
-tf_formh5.tf.debugging.set_log_device_placement(True) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
+tf_formh5.tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
 tf_formh5.set_memory_growth()
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
 
 # %%
 ''' NEPTUNE '''
@@ -458,7 +458,9 @@ def train_model(model,config,ckptgui=False):
         
  
     print("\n\tMODEL.FIT w/ name ",model_name)
-    #early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
+    #log_dir = aux.MODEL_PATH+"logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    early_stop_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
     neptune_callback = NeptuneCallback(run=run,log_on_batch=True,log_model_diagram=True) 
     history = model.fit(generate_input(data = train_fn,update_index=update_index_train,validation=False), 
                         steps_per_epoch=len(train_fn)*2,
@@ -467,7 +469,7 @@ def train_model(model,config,ckptgui=False):
                         validation_data=generate_input(data=valdt_fn,update_index=update_index_valdt,validation=True),
                         validation_steps=len(valdt_fn),
                         callbacks=[checkpoint_callback,  \
-                                   #early_stop_callback, \
+                                   early_stop_callback, \
                                    TqdmCallback(verbose=0), \
                                    neptune_callback])
     
@@ -491,12 +493,9 @@ def train_model(model,config,ckptgui=False):
 
 # %%
 ''' TEST FX '''
-#@tf.function
-#def predict(model,input):
-#    return model.predict(input)#.eval()[0][0]
 
 @tf.function
-def as_predict(x):
+def as_predict(model,x):
     return model(x, training=False)    
 
 def test_model(model,model_name,config,files=test_fn):
@@ -531,8 +530,8 @@ def test_model(model,model_name,config,files=test_fn):
             #prediction on frist batch
             start_predict1 = time.time()
             #predict_aux = model.predict(batch_frames)[0][0]
-            predict_aux = as_predict(batch_frames)[0][0].numpy()
-            #predict_aux = predict(model,batch_frames) #using tf.function
+            
+            predict_aux = as_predict(model,batch_frames)[0][0].numpy() #using tf.function
             #predict_aux = model(batch_frames,training=False)[0][0]
             end_predict1 = time.time()
             time_video_predict = time_batch_predict = end_predict1-start_predict1
@@ -551,9 +550,8 @@ def test_model(model,model_name,config,files=test_fn):
                 
                 #nésimo batch prediction
                 start_predict2 = time.time()
-                predict_aux = as_predict(batch_frames)[0][0].numpy()
                 #predict_aux = model.predict(batch_frames)[0][0]
-                #predict_aux = predict(model,batch_frames) #using tf.function
+                predict_aux = as_predict(model,batch_frames)[0][0].numpy() #using tf.function
                 end_predict2 = time.time()
                 time_batch_predict = end_predict2 - start_predict2
                 time_video_predict += time_batch_predict
@@ -597,7 +595,7 @@ def test_model(model,model_name,config,files=test_fn):
 
     #remove white spaces in file , for further easier reading
     with open(txt_path, 'r+') as f:txt=f.read().replace(' ', '');f.seek(0);f.write(txt);f.truncate()
-    aux.sort_files(txt_path) #sort alphabetcly
+    aux.sort_files(txt_path) #sort alphabetcly #also done in get_rslts_from_txt
     run["test/model/rslt"].upload(txt_path)
     
     return predict_total_max, predict_total
@@ -611,11 +609,11 @@ def test_model(model,model_name,config,files=test_fn):
 
 train_config = {
     "ativa" : 'leakyrelu',
-    "optima" : 'adamamsgrad',
+    "optima" : 'sgd',
     "batch_type" : 0,   # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
     "frame_max" : '4000',
-    "ckpt_start" : f"{9:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
-    "epochs" : 21
+    "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
+    "epochs" : 30
 }
 #run["train/config_train"].append(train_config)
 
@@ -636,19 +634,18 @@ wght4test_config = {
     "ativa" : 'leakyrelu',
     "optima" : 'adamamsgrad',
     "batch_type" : 0, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '4000'
+    "frame_max" : '40001'
 }
-
 #run["test/config_wght4test"].append(wght4test_config)
 
-model, model_name = tf_formh5.init_test_model(wght4test_config)
+model, model_name = tf_formh5.init_test_model(wght4test_config,from_path=aux.MODEL_PATH)
 
 # %%
 ''' TEST '''
 
 test_config = {
-    "batch_type" : 1, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '1000' 
+    "batch_type" : 2, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
+    "frame_max" : '3000' 
 }
 #run["test/config_test"].append(test_config)
 

@@ -1,16 +1,70 @@
-import cv2, time 
+import cv2, time , os
 
 import numpy as np
+import utils.auxua as aux
 
 
-def get_as_total_from_res_list(res_list,txt_i):
+# FX RELATED TO PROCESS RESULTS LIST
+
+class asgt_from_annotations_xdv:
+    def __init__(self):
+        self.txt_path = '/raid/DATASETS/anomaly/XD_Violence/annotations.txt'
+        self.get_data()
+        
+        self.video_name=''
+        self.video_j = -1
+        
+    def get_data(self):
+        #print('\nOPENING annotations',)
+        txt = open(self.txt_path,'r')
+        txt_data = txt.read()
+        txt.close()
+        self.video_list = [line.split() for line in txt_data.split("\n") if line]
+    
+   
+    def get_asgt_per_frame(self,vn):
+        
+        self.video_name = vn
+        self.asgt_per_frame = []
+        
+        # trys to find index from annotations with same name as input vn
+        for video_j in range(len(self.video_list)):
+            if str(self.video_list[video_j][0]) == str(self.video_name):
+                self.video_j = video_j
+                break
+            
+        # no video with that name in annotations    
+        if self.video_j == -1: 
+            return self.asgt_per_frame
+        else:
+            file_path=os.path.join(aux.SERVER_TEST_PATH , self.video_list[self.video_j][0] + '.mp4')
+            #print(file_path)
+            video = cv2.VideoCapture(str(file_path))
+            nframes_in_video = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+            #print(nframes_in_video)
+            
+            for i in range(nframes_in_video): self.asgt_per_frame.append(0)
+            #print("as_per_frame",np.shape(self.asgt_per_frame))
+            
+            for nota_i in range(len(self.video_list[self.video_j])):
+                if not nota_i % 2 and nota_i != 0: #i=2,4,6...
+                    end_anom = int(self.video_list[self.video_j][nota_i])
+                    start_anom = int(self.video_list[self.video_j][nota_i-1])
+                    for frame in range(start_anom,end_anom):
+                        self.asgt_per_frame[frame]=1
+                    #print(start_anom,end_anom)
+                    
+            print("asgt",np.shape(self.asgt_per_frame),"from",self.video_name)        
+        return self.asgt_per_frame
+            
+
+def get_as_total_from_res_list(res_list,txt_i,printt=False):
     '''
     retrieves the as score per frame for each video 
     taking as input txt file index from res_list['txt_path']
     '''
     
     as_total = []
-    printt=False
     print("as_total from",res_list['txt_path'][txt_i])
     for video_j in range(len(res_list['videopath'])):
         file_path = "".join(res_list['videopath'][video_j][txt_i])
@@ -96,12 +150,14 @@ def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
     global is_quit, is_paused, frame_counter
     
     #as_total = get_as_total_from_rslt_txti(txt_i)
-    print("\nres_list['full'] for video ",video_j,"| txt",txt_i,res_list['full'][video_j][txt_i])
+    print("  res_list['full'] for video ",video_j,"| txt",txt_i,res_list['full'][video_j][txt_i])
     
     file_path = "".join(res_list['videopath'][video_j][txt_i])
+    strap_video_name = os.path.splitext(res_list['videoname'][video_j][txt_i])[0]
+    print("  ",strap_video_name)
     
     video = cv2.VideoCapture(str(file_path))
-    window_name = "anoml vwr"+str(video_j)+":"+"/"+".".join(res_list['videoname'][video_j])
+    window_name = "AVwr."+str(video_j)+": "+os.path.basename(res_list['videopath'][video_j][txt_i])
     cv2.namedWindow(window_name)
     
     # Video information
@@ -110,6 +166,7 @@ def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
     height = video.get(cv2.CAP_PROP_FRAME_HEIGHT)
     total_frame = video.get(cv2.CAP_PROP_FRAME_COUNT)
     font = cv2.FONT_HERSHEY_SIMPLEX
+    fontScale = 0.5;thickness = 1;lineType = cv2.LINE_AA
     
     # We can set up keys to pause, go back and forth.
     # **params can be used to pass parameters to key actions.
@@ -142,7 +199,16 @@ def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
     is_quit = False         # Used to signal that quit is called
     is_paused = False       # Used to signal that pause is called
     
-    frame_counter = 0       # Used to track which frame are we.
+    # if video is abnormal, it gets the asgt_per_frame
+    asgt_per_frame =  []
+    if 'label_A' not in strap_video_name:
+        asgt = asgt_from_annotations_xdv()
+        asgt_per_frame = asgt.get_asgt_per_frame(strap_video_name)
+        gt = True
+    else: gt = False
+    
+    frame_counter = 0       # Used to track which frame are we.    
+    asgt_atual = 0
     try:
         while video.isOpened():
             # If the video is paused, we don't continue reading frames.
@@ -156,17 +222,19 @@ def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
                 frame_counter = int(video.get(cv2.CAP_PROP_POS_FRAMES))
                 #print(frame_counter)
 
-                #predict_atual = as_total[video_j][frame_counter-1]
+        
                 predict_atual = vas_list[frame_counter-1]
                 #print(predict_atual)
+                if gt:asgt_atual = asgt_per_frame[frame_counter-1]
                 
                 # Display frame numba/AS/time/fps
-                cv2.putText(frame, 'Frame: %d' % (frame_counter), (10, 10), font, 0.5, [60,250,250], 2)
-                cv2.putText(frame, 'AS:'+str(predict_atual), (10, 30), font, 0.5, [80,100,250], 2)
-                
-                cv2.putText(frame, 'Time: %.4f' % (frame_counter/fps), (int(width*2/8), 10), font, 0.5, [100,250,10], 2)
+                cv2.putText(frame, 'AS '+str(predict_atual), (10, 13), font, fontScale, [0,0,255], thickness,lineType)
+                cv2.putText(frame, 'GT '+str(asgt_atual), (10, 33), font, fontScale, [100,250,10], thickness,lineType)
+
+                cv2.putText(frame, '%d' % (frame_counter), (10, int(height)-10), font, fontScale, [60,250,250], thickness,lineType)
+                cv2.putText(frame, '%.2f' % (frame_counter/fps)+' s', (60, int(height)-10), font, fontScale, [80,100,250], thickness,lineType)
                 new_time = time.time()
-                cv2.putText(frame, 'fps: %.2f' % (1/(new_time-prev_time)), (int(width*4/8), 10), font, 0.5, [0,50,200], 2)
+                cv2.putText(frame, '%.2f' % (1/(new_time-prev_time))+' fps', (140, int(height)-10), font,fontScale, [0,50,200], thickness,lineType)
                 prev_time = new_time
                 
             # Display the image
@@ -180,3 +248,118 @@ def cv2_test_from_aslist(res_list,vas_list,video_j,txt_i):
     finally:
         video.release()
         cv2.destroyAllWindows()
+
+
+def init_watch_reslist(res_list, txt_i,watch_this):
+    
+    def get_fn_index_from_res_list(txt_is):
+        '''retrives all video indexs from a rslt.txt 
+        'N'
+        'A','AB1','AB2','AB4','AB5','AB6','AG',
+        'FNB1','FNB2','FNB4','FNB5','FNB6','FNG','FNBG',
+        'TPB1','TPB2','TPB4','TPB5','TPB6','TPG','TPBG'
+        'TN','FP' '''
+        
+        print("\nget_fn_index_from_list ",res_list['txt_modelname'][txt_i])
+
+        labels_indexs_fn={  
+            'N':[],\
+            'A':[],'AB1':[],'AB2':[],'AB4':[],'AB5':[],'AB6':[],'AG':[],\
+            'FNB1':[],'FNB2':[],'FNB4':[],'FNB5':[],'FNB6':[],'FNG':[],'FNBG':[],\
+            'TPB1':[],'TPB2':[],'TPB4':[],'TPB5':[],'TPB6':[],'TPG':[],'TPBG':[],\
+            'TN':[],'FP':[]                                
+        }
+        
+        # to get frist label only add _ to all : if 'B1' 'B2' ...
+        for video_j in range(len(res_list['videoname'])):
+            label_strap = os.path.splitext(res_list['videoname'][video_j][txt_i])[0].split('label')[1]
+            
+            if 'label_A' not in res_list['videoname'][video_j][txt_i]:  #ANOMALIES
+                labels_indexs_fn['A'].append(video_j)
+                #print(res_list['videoname'][video_j][txt_i],label_strap)
+                if 'B1' in label_strap : labels_indexs_fn['AB1'].append(video_j)
+                if 'B2' in label_strap : labels_indexs_fn['AB2'].append(video_j)
+                if 'B4' in label_strap : labels_indexs_fn['AB4'].append(video_j)
+                if 'B5' in label_strap : labels_indexs_fn['AB5'].append(video_j)
+                if 'B6' in label_strap : labels_indexs_fn['AB6'].append(video_j)
+                if 'G' in  label_strap : labels_indexs_fn['AG'].append(video_j)
+            
+                if float(res_list['max'][video_j][txt_i])<=0.5:  #FALSE NEGATIVE
+                    labels_indexs_fn['FNBG'].append(video_j) 
+                    if 'B1' in label_strap : labels_indexs_fn['FNB1'].append(video_j)
+                    if 'B2' in label_strap : labels_indexs_fn['FNB2'].append(video_j)
+                    if 'B4' in label_strap : labels_indexs_fn['FNB4'].append(video_j)
+                    if 'B5' in label_strap : labels_indexs_fn['FNB5'].append(video_j)
+                    if 'B6' in label_strap : labels_indexs_fn['FNB6'].append(video_j)
+                    if 'G' in  label_strap : labels_indexs_fn['FNG'].append(video_j)
+                
+                else:    #TRUE POSITIVE
+                    labels_indexs_fn['TPBG'].append(video_j)
+                    if 'label_B1' in res_list['videoname'][video_j][txt_i]:labels_indexs_fn['TPB1'].append(video_j)
+                    if 'label_B2' in res_list['videoname'][video_j][txt_i]:labels_indexs_fn['TPB2'].append(video_j)
+                    if 'label_B4' in res_list['videoname'][video_j][txt_i]:labels_indexs_fn['TPB4'].append(video_j)
+                    if 'label_B5' in res_list['videoname'][video_j][txt_i]:labels_indexs_fn['TPB5'].append(video_j)
+                    if 'label_B6' in res_list['videoname'][video_j][txt_i]:labels_indexs_fn['TPB6'].append(video_j)
+                    if 'label_G'  in res_list['videoname'][video_j][txt_i]:labels_indexs_fn['TPG'].append(video_j)
+                    
+            else: # NORMAL
+                labels_indexs_fn['N'].append(video_j)
+                
+                if float(res_list['max'][video_j][txt_i])>0.5:  #FALSE POSITIVE
+                    labels_indexs_fn['FP'].append(video_j)                
+                else:    #TRUE NEGATIVE
+                    labels_indexs_fn['TN'].append(video_j)
+        
+        print(  '\nANOMALIES',\
+            '\n  All        ',len(labels_indexs_fn['A']),\
+            '\n  AB1 FIGHT  ',    len(labels_indexs_fn['AB1']),\
+            '\n  AB2 SHOOT  ',    len(labels_indexs_fn['AB2']),\
+            '\n  AB4 RIOT   ',     len(labels_indexs_fn['AB4']),\
+            '\n  AB5 ABUSE  ',    len(labels_indexs_fn['AB5']),\
+            '\n  AB6 CARACC ',   len(labels_indexs_fn['AB6']),\
+            '\n  AG EXPLOS  ',    len(labels_indexs_fn['AG']),\
+                
+            '\n\nFALSE NEGATIVES (LABEL1 / AS0)',\
+            '\n  FN.B1 FIGHT  ',  len(labels_indexs_fn['FNB1']),\
+            '\n  FN.B2 SHOOT  ',  len(labels_indexs_fn['FNB2']),\
+            '\n  FN.B4 RIOT   ',   len(labels_indexs_fn['FNB4']),\
+            '\n  FN.B5 ABUSE  ',  len(labels_indexs_fn['FNB5']),\
+            '\n  FN.B6 CARACC ', len(labels_indexs_fn['FNB6']),\
+            '\n  FN.G EXPLOS  ',len(labels_indexs_fn['FNG']),\
+            '\n  FN.B+G       ',len(labels_indexs_fn['FNBG']),\
+                
+            '\n\nTRUE POSITIVES (LABEL1 / AS1)',\
+            '\n  TP.B1 FIGHT  ',  len(labels_indexs_fn['TPB1']),\
+            '\n  TP.B2 SHOOT  ',  len(labels_indexs_fn['TPB2']),\
+            '\n  TP.B4 RIOT   ',   len(labels_indexs_fn['TPB4']),\
+            '\n  TP.B5 ABUSE  ',  len(labels_indexs_fn['TPB5']),\
+            '\n  TP.B6 CARACC ', len(labels_indexs_fn['TPB6']),\
+            '\n  TP.G EXPLOS  ',len(labels_indexs_fn['TPG']),\
+            '\n  TP.B+G       ',len(labels_indexs_fn['TPBG']),\
+                
+            '\n\nNORMALS',\
+            '\n  All        ',len(labels_indexs_fn['N']),\
+                
+            '\n\nFALSE POSITIVES (LABEL0 / AS1)',\
+            '\n  FP  ',len(labels_indexs_fn['FP']),\
+                
+            '\n\nTRUE NEGATIVES (LABEL0 / AS0)',\
+            '\n  TN  ',len(labels_indexs_fn['TN']),'\n')
+                    
+        return labels_indexs_fn
+    
+    as_total = get_as_total_from_res_list(res_list,txt_i)
+    
+    labels_indexs_fn=get_fn_index_from_res_list(txt_i)
+    
+    print('set to watch this',watch_this)
+    for labels_2_watch in watch_this:
+        print('\n',labels_2_watch)
+        for i in range(len(labels_indexs_fn[labels_2_watch])):
+            video_j = labels_indexs_fn[labels_2_watch][i]
+            print(video_j)
+            cv2_test_from_aslist(res_list,as_total[video_j],video_j,txt_i)
+            
+            
+# FX RELATED LIVE PROCESSING
+

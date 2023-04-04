@@ -7,6 +7,7 @@ import tensorflow as tf
 
 import utils.tf_formh5 as tf_formh5
 import utils.auxua as aux
+import utils.watch as watch
 
 
 # https://stackoverflow.com/questions/38864711/how-to-optimize-multiprocessing-in-python
@@ -36,7 +37,7 @@ model_in_width = 160
 
 test_config = {
     "batch_type" : 2, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '500' 
+    "frame_max" : '1000' 
     }
 
 
@@ -45,7 +46,7 @@ test_config = {
 def as_predict(x):
     return model(x, training=False)    
 
-def predict_batch(frame_queque,as_queque,ref_frame_array):
+def predict_batch(frame_queque,as_queque,ref_frame_array,printt):
     
     def assert_batch(ass_list,ref_list):
             print("\nASSERT batch\n",np.shape(ass_list),np.shape(ref_list))
@@ -91,7 +92,6 @@ def predict_batch(frame_queque,as_queque,ref_frame_array):
         # different moving window 
         '''seq = [0, 1, 2, 3, 4, 5, 6 ,7,8,9,10,11,12,13,14,15,16,17,18,19,20]
         window_size = 10; step_size = 2
-
         for i in range(0, len(seq) - window_size + 1, step_size):
             print(i)
             #print(seq[i:i+window_size])'''
@@ -102,9 +102,10 @@ def predict_batch(frame_queque,as_queque,ref_frame_array):
             batch = np.array(frame_buffer.copy())
             
             # ASSERT batch
-            #start_ref = frame_buffer_step_atual*frame_buffer_step_len
-            #end_ref = start_ref + frame_buffer_capacity
-            #assert_batch(batch,ref_frame_array[start_ref:end_ref])
+            if len(ref_frame_array)!=0:
+                start_ref = frame_buffer_step_atual*frame_buffer_step_len
+                end_ref = start_ref + frame_buffer_capacity
+                assert_batch(batch,ref_frame_array[start_ref:end_ref])
             
             frame_buffer_step_atual += 1
             
@@ -130,105 +131,131 @@ def predict_batch(frame_queque,as_queque,ref_frame_array):
             
             as_queque.put((as_atual)) 
             
-            print("\n--- predict at frame %.0f ---"%frame_buffer_atual)
-            print("  batch_shape", np.shape(batch))
-            print("  resiz_time %.3f" %resiz_time)
-            print("  expnd_dims %.3f" %expand_time)
-            print("  as",as_atual,"in",f"{predict_time:.{3}f}","\n")
+            if printt:
+                print("\n--- predict at frame %.0f ---"%frame_buffer_atual)
+                print("  batch_shape", np.shape(batch))
+                print("  resiz_time %.3f" %resiz_time)
+                print("  expnd_dims %.3f" %expand_time)
+                print("  as",as_atual,"in",f"{predict_time:.{3}f}","\n")
            
                
 
-
-#ref frame list
-def save_video_to_array(pathh):
-    cap = cv2.VideoCapture(pathh)
-    frames = []
-    while True:
-        ret, frm = cap.read()
-        if not ret:break
-        #frm = cv2.resize(frm, (model_in_width, model_in_height)) / 255
-        frames.append(frm)
-    cap.release()
-    return np.array(frames)  
-
-
-def ASPlayer2(video_path):
-
-    # cv video info
-    video = cv2.VideoCapture(video_path)
-    video_atual_frame1 = 0
-    total_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
-    fps = video.get(cv2.CAP_PROP_FPS)
-    frame_time_ms = int(1000/fps)
-    width  = video.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = video.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    wn = 'as'
-    cv2.namedWindow(wn) 
+class ASPlayer:
     
-       
-    ref_frame_array = save_video_to_array(video_path)
-    
-    
-    ''' PREDICT THREAD '''
-    # Create the input and as queues
-    frame_queque = Queue()
-    as_queque = Queue()
-
-    # Create the prediction thread
-    prediction_thread = threading.Thread(target=predict_batch, args=(frame_queque , as_queque , ref_frame_array))
-    prediction_thread.start()
-    
-
-    ''' READ VIDEO + FEED QUEQUES'''
-    as_atual=0.0
-    while video.isOpened() :
-        sucess, frame = video.read()
-        if sucess:
-            video_atual_frame = video.get(cv2.CAP_PROP_POS_FRAMES)
-           
-            # inject frame to queque
-            try: frame_queque.put_nowait((video_atual_frame, frame))
-            except: pass
-            
-            # Get as if ready
-            try: 
-                as_atual = as_queque.get_nowait() # Use this to prefer smooth display over frame/text shift
-            except: pass
-            
-
-            cv2.putText(frame,str(as_atual),(10,25), font, 1,(255,0,0),2)
-            cv2.imshow(wn, frame)
-            print("\ndisplay", video_atual_frame)
-            
-
-            key = cv2.waitKey(frame_time_ms)  
-            # quit   
-            if key == ord('q'): break
-            # pause
-            if key == ord(' '):
-                while True:
-                    key = cv2.waitKey(1)
-                    if key == ord(' '):break
-    
-        else: break
+    def __init__(self,video_path,toassert):
         
-        
-    ''' CLOSE '''    
-    video.release()
-    cv2.destroyAllWindows()
+        # cv video info
+        self.video = cv2.VideoCapture(video_path)
+        self.total_frames = self.video.get(cv2.CAP_PROP_FRAME_COUNT)
+        self.fps = self.video.get(cv2.CAP_PROP_FPS)
+        self.frame_time_ms = int(1000/self.fps)
+        self.width  = self.video.get(cv2.CAP_PROP_FRAME_WIDTH)
+        self.height = self.video.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.fontScale = 0.5;self.thickness = 1;self.lineType = cv2.LINE_AA
+        self.strap_video_name = os.path.splitext(os.path.basename(video_path))[0]
+        self.wn = 'as'+self.strap_video_name
+        cv2.namedWindow(self.wn) 
 
-    print("signal frame queue to close")
-    frame_queque.put_nowait((-1, None))
+        # make assert per batch or not
+        if toassert: ref_frame_array = self.get_array_from_video()
+        else: ref_frame_array=[]
+            
+            
+        ''' PREDICT THREAD '''
+        # Create the input and as queues
+        self.frame_queque = Queue()
+        self.as_queque = Queue()
+        
+        # Create the prediction thread
+        self.prediction_thread = threading.Thread(target=predict_batch, args=(self.frame_queque , self.as_queque , ref_frame_array,False))
+        self.prediction_thread.start()
     
-    print("closing predict thread")
-    prediction_thread.join()
     
+        # Ground Truth from annotations
+        # if video is abnormal, it gets the asgt_per_frame
+        self.asgt_per_frame =  []
+        if 'label_A' not in self.strap_video_name:
+            asgt = watch.asgt_from_annotations_xdv()
+            self.asgt_per_frame = asgt.get_asgt_per_frame(self.strap_video_name)
+            print("asgt_per_frame",np.shape(self.asgt_per_frame))
+            self.gt = True
+        else: self.gt = False
+    
+    def get_array_from_video(self):
+        cap = cv2.VideoCapture(self.video_path)
+        frames = []
+        while True:
+            ret, frm = cap.read()
+            if not ret:break
+            #frm = cv2.resize(frm, (model_in_width, model_in_height)) / 255
+            frames.append(frm)
+        cap.release()
+        return np.array(frames)  
+
+    def play(self):
+        
+        as_atual=0.0
+        asgt_atual=0
+        prev_time = time.time()
+        
+        ''' READ & DISPLAY VIDEO + FEED QUEQUES'''
+        while self.video.isOpened() :
+            sucess, frame = self.video.read()
+            if sucess:
+                video_atual_frame = int(self.video.get(cv2.CAP_PROP_POS_FRAMES))
+            
+                # inject frame to queque
+                try: self.frame_queque.put_nowait((video_atual_frame, frame))
+                except: pass
+                
+                # Get as if ready
+                try: as_atual = self.as_queque.get_nowait() # Use this to prefer smooth display over frame/text shift
+                except: pass
+                
+                
+                # window prints
+                cv2.putText(frame,'AS '+str('%.4f' % (as_atual)),(10,15),self.font,self.fontScale+0.2,[0,0,255],self.thickness,self.lineType)
+                
+                if self.gt: asgt_atual = self.asgt_per_frame[video_atual_frame-1]
+                cv2.putText(frame,'GT '+str(asgt_atual), (10, 40), self.font,self.fontScale+0.2,[100,250,10],self.thickness,self.lineType)
+                
+                cv2.putText(frame, '%d' % (video_atual_frame), (10, int(self.height)-10),self.font,self.fontScale,[60,250,250],self.thickness,self.lineType)
+                cv2.putText(frame, '%.2f' % (video_atual_frame/self.fps)+' s',(60,int(self.height)-10),self.font,self.fontScale, [80,100,250],self.thickness,self.lineType)
+                new_time = time.time()
+                cv2.putText(frame, '%.2f' % (1/(new_time-prev_time))+' fps',(140,int(self.height)-10),self.font,self.fontScale,[0,50,200],self.thickness,self.lineType)
+                prev_time = new_time
+                
+                cv2.imshow(self.wn, frame)
+                print("\ndisplay", video_atual_frame)
+                
+                
+                key = cv2.waitKey(self.frame_time_ms)  
+                if key == ord('q'): break  # quit
+                if key == ord(' '):  # pause
+                    while True:
+                        key = cv2.waitKey(1)
+                        if key == ord(' '):break
+        
+            else: break
+            
+            
+        ''' CLOSE '''    
+        self.video.release()
+        cv2.destroyAllWindows()
+
+        print("signal frame queue to close")
+        self.frame_queque.put_nowait((-1, None))
+        
+        print("closing predict thread")
+        self.prediction_thread.join()
+    
+  
+  
     
 def init_watch_live(watch_this):
-    '''
-        frame_max is the window buffer size to predict on
-    '''
+
+
     print("\n\nINIT WATCH LIVE")
     def get_index_per_label_from_list(file_list):
         '''retrives video indexs per label or all from xdv_test mp4'''
@@ -272,8 +299,10 @@ def init_watch_live(watch_this):
             path = test_mp4_paths[test_labels_indexs[labels_2_watch][i]]
             print('\n\n##################\n',labels_2_watch,i,path,'\n')
             # real shit
-            ASPlayer2(path)
+            asplayer = ASPlayer(path,False)
+            asplayer.play()
             #break
+
 
 
 '''
@@ -287,6 +316,6 @@ def init_watch_live(watch_this):
     BG ALL ANOMALIES
 '''
 
-init_watch_live(watch_this=['B1'])
+init_watch_live(watch_this=['A'])
 
 

@@ -74,7 +74,7 @@ def rename_folders(path, old_string, new_string,dry_run=True):
 
 def sort_txt_abc(fldr_or_file):
 
-    if os.path.isfile(fldr_or_file) and os.path.split(fldr_or_file)[1] == ".txt":
+    if os.path.isfile(fldr_or_file) and os.path.splitext(fldr_or_file)[1] == ".txt":
         cmd = "sort "+fldr_or_file+" -o "+fldr_or_file
         os.system(str(cmd))
         print(cmd)
@@ -103,7 +103,7 @@ def load_xdv_test(aac_path=''):
                 mp4_paths.append(os.path.join(root, file))
     mp4_paths.sort()
     for i in range(len(mp4_paths)):            
-        if 'label_A' in  file:mp4_labels.append(0)
+        if 'label_A' in  mp4_paths[i] : mp4_labels.append(0)
         else:mp4_labels.append(1)
     
     aac_paths, aac_labels = [],[] 
@@ -116,7 +116,7 @@ def load_xdv_test(aac_path=''):
                     aac_paths.append(os.path.join(root, file))
         aac_paths.sort()
         for i in range(len(aac_paths)):               
-            if 'label_A' in  file:aac_labels.append(0)
+            if 'label_A' in aac_paths[i] : aac_labels.append(0)
             else:aac_labels.append(1)       
     
     return mp4_paths,mp4_labels,aac_paths,aac_labels
@@ -196,6 +196,41 @@ def get_testxdvanom_info():
             "%.2f"%(total_secs), "secs\n"\
             "MEAN OF", "%.2f"%(mean_frames),"frames  "\
             "%.2f"%(mean_secs), "secs per video\n")
+
+
+def get_index_per_label_from_filelist(file_list):
+    '''retrives video indexs per label and all from file list xdv'''
+        
+    print("\n  get_index_per_label_from_list\n")
+    
+    labels_indexs={'A':[],'B1':[],'B2':[],'B4':[],'B5':[],'B6':[],'G':[],'BG':[]}
+    
+    # to get frist label only add _ to all : if 'B1' 'B2' ...
+    for video_j in range(len(file_list)):
+        
+        label_strap = os.path.splitext(os.path.basename(file_list[video_j]))[0].split('label')[1]
+        #print(os.path.basename(file_list[video_j]),label_strap)
+        
+        if 'A' in label_strap: labels_indexs['A'].append(video_j)
+        else:
+            labels_indexs['BG'].append(video_j)
+            if 'B1' in label_strap : labels_indexs['B1'].append(video_j)
+            if 'B2' in label_strap : labels_indexs['B2'].append(video_j)
+            if 'B4' in label_strap : labels_indexs['B4'].append(video_j)
+            if 'B5' in label_strap : labels_indexs['B5'].append(video_j)
+            if 'B6' in label_strap : labels_indexs['B6'].append(video_j)
+            if 'G'  in label_strap : labels_indexs['G'].append(video_j)
+    
+    print(  '\tA NORMAL',               len(labels_indexs['A']),\
+            '\n\n\tB1 FIGHT',           len(labels_indexs['B1']),\
+            '\n\tB2 SHOOT',             len(labels_indexs['B2']),\
+            '\n\tB4 RIOT',              len(labels_indexs['B4']),\
+            '\n\tB5 ABUSE',             len(labels_indexs['B5']),\
+            '\n\tB6 CARACC',            len(labels_indexs['B6']),\
+            '\n\tG EXPLOS',             len(labels_indexs['G']),\
+            '\n\n\tBG ALL ANOMALIES',   len(labels_indexs['BG']))
+    
+    return labels_indexs
 
 
 #--------------------------------------------------------#
@@ -314,6 +349,7 @@ def get_results_from_txt(fldr_or_file,printt=True,plot=False,save_plot=False):
     if os.path.isfile(fldr_or_file):
         if printt:print("FILE")
         fname, fext = os.path.splitext(fldr_or_file)
+        sort_txt_abc(fldr_or_file)
         res_path.append(os.path.join(fldr_or_file))
         res_model_fn.append(os.path.splitext(os.path.basename(fldr_or_file))[0])
         tablee = False
@@ -323,6 +359,7 @@ def get_results_from_txt(fldr_or_file,printt=True,plot=False,save_plot=False):
         for file in os.listdir(fldr_or_file):
             if os.path.splitext(file)[1] == ".txt" and os.path.getsize(os.path.join(fldr_or_file, file)) != 0: #and file.find('weights') != -1
                 res_path.append(os.path.join(fldr_or_file, file))
+                sort_txt_abc(os.path.join(fldr_or_file, file))
         tablee = True
         res_path = sorted(res_path)
         for path in res_path:res_model_fn.append(os.path.splitext(os.path.basename(path))[0])

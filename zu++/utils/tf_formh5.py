@@ -45,6 +45,54 @@ def set_tf_loglevel(level):
 
 
 #---------------------------#
+#YET TO BE TESTED 
+#https://mtg.github.io/essentia-labs/news/tensorflow/2019/10/19/tensorflow-models-in-essentia/
+
+def get_tf_frozen_models_pb():
+    model_fol = 'YOUR/MODEL/FOLDER/'
+    output_graph = 'YOUR_MODEL_FILE.pb'
+
+    #with tf.name_scope('model'):
+    #    DEFINE_YOUR_ARCHITECTURE()
+
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+
+    saver = tf.train.Saver()
+    saver.restore(sess, 'CHECKPOINT_FOLDER/')
+
+    gd = sess.graph.as_graph_def()
+    for node in gd.node:
+        if node.op == 'RefSwitch':
+            node.op = 'Switch'
+            for index in range(len(node.input)):
+                if 'moving_' in node.input[index]:
+                    node.input[index] = node.input[index] + '/read'
+        elif node.op == 'AssignSub':
+            node.op = 'Sub'
+            if 'use_locking' in node.attr: del node.attr['use_locking']
+        elif node.op == 'AssignAdd':
+            node.op = 'Add'
+            if 'use_locking' in node.attr: del node.attr['use_locking']
+        elif node.op == 'Assign':
+            node.op = 'Identity'
+            if 'use_locking' in node.attr: del node.attr['use_locking']
+            if 'validate_shape' in node.attr: del node.attr['validate_shape']
+            if len(node.input) == 2:
+                node.input[0] = node.input[1]
+                del node.input[1]
+
+    node_names =[n.name for n in gd.node]
+
+    output_graph_def = tf.graph_util.convert_variables_to_constants(
+        sess, gd, node_names)
+
+    # Write to Protobuf format
+    tf.io.write_graph(output_graph_def, model_fol, output_graph, as_text=False)
+    sess.close()
+
+
+#---------------------------#
 
 def get_weight_from_ckpt(h5_folder_nd_file,config):
     # eg. tf_formh5.get_weight_from_ckpt("1679349568.3157873_leakyrelu_adamamsgrad_0_4000_ckpt-00000009/1679349568.3157873_leakyrelu_adamamsgrad_0_4000_ckpt-00000009-00000017.h5",train_config)
@@ -197,19 +245,34 @@ def form_model(params):
     return model
 
 
-def init_test_model(params,run=None):
-    ''' returns model with params in config present in name over aux.WEIGHTS_PATH'''
+def init_test_model(params,from_path=aux.WEIGHTS_PATH,run=None):
+    ''' returns model with params config present in name over aux.WEIGHTS_PATH
+        or if from_path is aux.MODEL_PATH it will recreate model from folders
+    '''
     
-    model = form_model(params)
+    if from_path == str(aux.WEIGHTS_PATH):
+        model = form_model(params)
     
-    find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
-    para_file_name, para_file_path = find_h5(aux.WEIGHTS_PATH,find_string,ruii=False)
+        find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
+        para_file_name, para_file_path = find_h5(from_path,find_string,ruii=False)
     
-    model.load_weights(para_file_path[0])
+        model.load_weights(para_file_path[0])
     
-    print("\n\tWEIGHTS from ", '/'+os.path.split(os.path.split(para_file_path[0])[0])[1]+'/'+os.path.split(para_file_path[0])[1])
-    if run:run["test/model_name"] = para_file_name[0]
+        print("\n\tWEIGHTS from ", '/'+os.path.split(os.path.split(para_file_path[0])[0])[1]+'/'+os.path.split(para_file_path[0])[1])
+        if run:run["test/model_name"] = para_file_name[0]
+        
+    elif from_path==str(aux.MODEL_PATH):
+        
+        find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
+        para_file_name, para_file_path = find_h5(from_path,find_string,ruii=False)
+        
+        model = tf.keras.models.load_model(para_file_path[0].replace(".h5",""))
+        
+        print("\n\tMODEL from ", para_file_path[0].replace(".h5",""))
+        model.summary()
+        
+    else:
+        raise Exception("give valid from_path")
     
     return model , para_file_name[0]
-
 

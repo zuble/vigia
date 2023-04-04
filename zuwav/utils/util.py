@@ -1,11 +1,11 @@
 import os, subprocess
 from essentia.standard import *
 
-SERVER_TEST_PATH = '/raid/DATASETS/anomaly/XD_Violence/testing'
+SERVER_TEST_PATH = '/raid/DATASETS/anomaly/XD_Violence/testing_copy'
 SERVER_TEST_AUD_ORIG_PATH = '/raid/DATASETS/anomaly/XD_Violence/aud/testing/original'
 SERVER_TEST_AUD_MONO_PATH = '/raid/DATASETS/anomaly/XD_Violence/aud/testing/mono'
 
-
+#------------------------------------#
 def load_xdv_test(aac_path):
     mp4_paths, mp4_labels = [],[]
     for root, dirs, files in os.walk(SERVER_TEST_PATH):
@@ -14,7 +14,7 @@ def load_xdv_test(aac_path):
                 mp4_paths.append(os.path.join(root, file))
     mp4_paths.sort()
     for i in range(len(mp4_paths)):            
-        if 'label_A' in  file:mp4_labels.append(0)
+        if 'label_A' in mp4_paths[i]:mp4_labels.append(0)
         else:mp4_labels.append(1)
     
     print('acc_path',aac_path)
@@ -25,10 +25,47 @@ def load_xdv_test(aac_path):
                 aac_paths.append(os.path.join(root, file))
     aac_paths.sort()
     for i in range(len(aac_paths)):               
-        if 'label_A' in  file:aac_labels.append(0)
+        if 'label_A' in aac_paths[i] : aac_labels.append(0)
         else:aac_labels.append(1)                
     
     return mp4_paths,mp4_labels,aac_paths,aac_labels
+
+def get_index_per_label_from_filelist(file_list):
+    '''retrives video indexs per label and all from file list xdv'''
+        
+    print("\n  get_index_per_label_from_list\n")
+    
+    labels_indexs={'A':[],'B1':[],'B2':[],'B4':[],'B5':[],'B6':[],'G':[],'BG':[]}
+    
+    # to get frist label only add _ to all : if 'B1' 'B2' ...
+    for video_j in range(len(file_list)):
+        
+        label_strap = os.path.splitext(os.path.basename(file_list[video_j]))[0].split('label')[1]
+        #print(os.path.basename(file_list[video_j]),label_strap)
+        
+        if 'A' in label_strap: labels_indexs['A'].append(video_j)
+        else:
+            labels_indexs['BG'].append(video_j)
+            if 'B1' in label_strap : labels_indexs['B1'].append(video_j)
+            if 'B2' in label_strap : labels_indexs['B2'].append(video_j)
+            if 'B4' in label_strap : labels_indexs['B4'].append(video_j)
+            if 'B5' in label_strap : labels_indexs['B5'].append(video_j)
+            if 'B6' in label_strap : labels_indexs['B6'].append(video_j)
+            if 'G'  in label_strap : labels_indexs['G'].append(video_j)
+    
+    print(  '\tA NORMAL',               len(labels_indexs['A']),\
+            '\n\n\tB1 FIGHT',           len(labels_indexs['B1']),\
+            '\n\tB2 SHOOT',             len(labels_indexs['B2']),\
+            '\n\tB4 RIOT',              len(labels_indexs['B4']),\
+            '\n\tB5 ABUSE',             len(labels_indexs['B5']),\
+            '\n\tB6 CARACC',            len(labels_indexs['B6']),\
+            '\n\tG EXPLOS',             len(labels_indexs['G']),\
+            '\n\n\tBG ALL ANOMALIES',   len(labels_indexs['BG']))
+    
+    return labels_indexs
+
+
+#---------------------------------------------#
 
 
 from pylab import plot, show, figure, imshow
@@ -37,9 +74,6 @@ import matplotlib.pyplot as plt
 plt.rcParams['figure.figsize'] = (15, 6) # set plot sizes to something larger than default
 
 def plot_mfcc_melbands(audio):
-    plot(audio[1*44100:2*44100])
-    plt.title("This is how the 2nd second of this audio looks like:")
-    show()
     
     w = Windowing(type = 'hann')
     spectrum = Spectrum()  # FFT() would return the complex FFT, here we just want the magnitude spectrum
@@ -99,3 +133,41 @@ def conv_mp4_to_aac(mp4_paths,dest_path,channels,dry_run=True):
         if not dry_run:
             command = "ffmpeg -nostats -hide_banner -v warning -i "+str('"'+path+'"')+" -ac "+str(channels)+' '+str('"'+out_fn+'"')
             os.system(command)
+
+
+import moviepy.editor as mp
+import cv2 , datetime
+def recreate_mp4_with_right_duration(path):
+    
+    def get_total_time(path):
+        videocv = cv2.VideoCapture(path)
+        total_frames = int(videocv.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = int(videocv.get(cv2.CAP_PROP_FPS))
+        total_time = total_frames/fps
+        videocv.release()
+        return total_time
+    
+    print('\n#--------------------------------------------------------------#')
+    print('\nold',path)
+    total_time = get_total_time(path)
+    print("total_time_old",total_time)
+    
+    aux_fn = os.path.splitext(os.path.basename(path))[0]+'_1.mp4'
+    dir = os.path.dirname(path)
+    aux_path = os.path.join(dir,aux_fn)
+    print('\naux',aux_path)
+    os.rename(path,aux_path)
+
+    command = "ffmpeg -nostats -hide_banner -v warning -i "+str('"'+aux_path+'"')+" -ss 0 -t "+str(total_time)+' '+str('"'+path+'"')
+    print('\n',command)
+    os.system(command)
+    
+    print("deleteing aux")
+    os.remove(aux_path)
+
+    total_time = get_total_time(path)
+    print("\ntotal_time_new",total_time)
+
+    # shit with the codecs fml
+    #videomp = mp.VideoFileClip(path).subclip(0,total_time)
+    #videomp.write_videofile(new_path)

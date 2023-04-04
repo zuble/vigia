@@ -37,7 +37,7 @@ model_in_width = 160
 
 test_config = {
     "batch_type" : 2, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '100' 
+    "frame_max" : '1000' 
     }
 
 
@@ -265,24 +265,25 @@ def init_watch_live(watch_this):
     for labels_2_watch in watch_this:
         print('  ',labels_2_watch,' : ',test_labels_indexs[labels_2_watch])
         
-        all_or_specific = input("\n\nall indxs : enter  |  specific indxs : ex 3,4,77,7  |  no as window : space+enter\n\n")
+        all_or_specific = input("\n\nall indxs : enter  |  specific indxs : ex 3,4,77,7  |  dry_run no as window : dr\n\n")
         
-        if all_or_specific == "" or " ":
+        if all_or_specific == "": # all
             for i in range(len(test_labels_indexs[labels_2_watch])):
                 index = test_labels_indexs[labels_2_watch][i]
                 path = test_mp4_paths[index]
-                print('\n#-------------------#$%--------------------#\n',\
-                    labels_2_watch,index,path)
-                # real shit
-                if all_or_specific == "":ASPlayer(path)
-                              
-        else:
+                print('\n#-------------------#$%--------------------#\n',labels_2_watch,index,path)
+                ASPlayer(path)
+        elif all_or_specific == "dr": 
+            for i in range(len(test_labels_indexs[labels_2_watch])):
+                index = test_labels_indexs[labels_2_watch][i]
+                path = test_mp4_paths[index]
+                print('\n#-------------------#$%--------------------#\n',labels_2_watch,index,path) 
+        else: # specific
             all_or_specific = all_or_specific.split(",")
             all_or_specific = [int(num) for num in all_or_specific]
             for index in all_or_specific:
                 path = test_mp4_paths[index]
-                print('\n#-------------------#$%--------------------#\n',\
-                        labels_2_watch,index,path)
+                print('\n#-------------------#$%--------------------#\n',labels_2_watch,index,path)
                 # real shit
                 ASPlayer(path)
 

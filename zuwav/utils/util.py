@@ -137,9 +137,12 @@ def conv_mp4_to_aac(mp4_paths,dest_path,channels,dry_run=True):
 
 import moviepy.editor as mp
 import cv2 , datetime
-def recreate_mp4_with_right_duration(path):
-    
-    def get_total_time(path):
+'''
+test_mp4_paths,test_mp4_labels,test_aac_paths,test_aac_labels = load_xdv_test(SERVER_TEST_AUD_ORIG_PATH)
+for path in test_mp4_paths:
+    recreate_mp4_with_right_duration(path)
+'''
+def get_total_time(path):
         videocv = cv2.VideoCapture(path)
         total_frames = int(videocv.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = int(videocv.get(cv2.CAP_PROP_FPS))
@@ -147,6 +150,7 @@ def recreate_mp4_with_right_duration(path):
         videocv.release()
         return total_time
     
+def recreate_mp4_with_right_duration(path):
     print('\n#--------------------------------------------------------------#')
     print('\nold',path)
     total_time = get_total_time(path)

@@ -632,9 +632,9 @@ train_config = {
 
 wght4test_config = {
     "ativa" : 'leakyrelu',
-    "optima" : 'adamamsgrad',
+    "optima" : 'sgd',
     "batch_type" : 0, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '40001'
+    "frame_max" : '4000'
 }
 #run["test/config_wght4test"].append(wght4test_config)
 

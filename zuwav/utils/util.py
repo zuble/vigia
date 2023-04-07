@@ -112,7 +112,7 @@ def plot_mfcc_melbands(audio):
 
 
 
-def print_acodec_from_mp4(data,printt=False):
+def print_acodec_from_mp4(data,printt=False,only_sr=False):
     out=[]
     for i in range(len(data)):
         output = subprocess.check_output('ffprobe -hide_banner -v error -select_streams a:0 -show_entries stream=codec_name,channels,sample_rate,bit_rate -of default=noprint_wrappers=1 -of compact=p=0:nk=1 '+str('"'+data[i]+'"'), shell=True)
@@ -121,7 +121,8 @@ def print_acodec_from_mp4(data,printt=False):
         if printt:print(output)
     #os.system('ffprobe -hide_banner -show_streams -select_streams a:0 -i '+str('"'+test_fn[1]+'"'))
     #os.system('ffprobe -hide_banner '+str('"'+test_fn[1]+'"'))
-    return out
+    if only_sr:return int(str(out[0]).split('|')[1])
+    else: return out
 
 # convert mp4/multiple audio channels to mp4+mono https://superuser.com/questions/1711628/5-1-to-mono-using-ffmpeg
 def conv_mp4_to_aac(mp4_paths,dest_path,channels,dry_run=True):

@@ -37,7 +37,8 @@ model_in_width = 160
 
 test_config = {
     "batch_type" : 2, # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : '1000' 
+    "frame_max" : '1000',
+    "buffer_step_secs": 5
     }
 
 
@@ -62,7 +63,7 @@ def predict_batch(frame_queque,as_queque,ref_frame_array,printt=False):
     frame_buffer = deque(maxlen=frame_buffer_capacity)
     frame_buffer_atual = 0
     frame_buffer_step_atual = 0
-    frame_buffer_step_len = 5*24 # 3secs * 24fps
+    frame_buffer_step_len = test_config["buffer_step_secs"]*24 # 3secs * 24fps
     
     as_atual=expand_time=predict_time=0.0
     

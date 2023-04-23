@@ -1,0 +1,73 @@
+# type: ignore 
+
+# To use the pretrained weights from the model you defined above, 
+# but with a different classification head, you can do the following steps:
+
+#    Load the pretrained weights into the model:
+
+model_rgb.load_weights('pretrained_weights.h5')
+
+#    Freeze the layers of the convolutional and LSTM parts of the model so that they are not trainable:
+
+for layer in model_rgb.layers[:-2]:
+    layer.trainable = False
+
+#    Define a new classification head for the model. 
+#    For example, if you want to use a different dense layer with 256 units and a softmax activation, 
+#    you can add the following layers:
+
+x = keras.layers.Dense(256, activation='relu')(model_rgb.layers[-2].output)
+output = keras.layers.Dense(num_classes, activation='softmax')(x)
+
+#where num_classes is the number of classes in your new classification task.
+
+#    Create a new model with the same input as the original model and the new classification head:
+
+model = keras.Model(inputs=model_rgb.inputs, outputs=output)
+
+#    Compile the new model with an appropriate loss function, optimizer, and metrics:
+
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+#    Train the new model on your new classification task:
+
+model.fit(x_train, y_train, epochs=num_epochs, batch_size=batch_size, validation_data=(x_val, y_val))
+
+# Note that you may need to modify the last layer of the original model to match 
+# the number of classes in your new classification task, depending on the structure of your original model.
+
+
+
+SAVE & LOAD ARRAYS 
+
+If you want to save all 3000 NumPy arrays to a single file and load them back later, you can use the np.savez() function to save them to a compressed archive in .npz format. Here's an example:
+
+import numpy as np
+
+# Create a dictionary to hold all the arrays
+arrays_dict = {}
+for i in range(3000):
+    arr = np.random.rand(10, 10)  # Replace with your actual array
+    key = f"array_{i}"
+    arrays_dict[key] = arr
+
+# Save all the arrays to a single file
+np.savez("all_arrays.npz", **arrays_dict)
+
+This will save all 3000 arrays to a single file called "all_arrays.npz". The **arrays_dict syntax unpacks the dictionary and passes each key-value pair as a separate argument to the np.savez() function.
+
+To load the arrays back into memory later, you can use the np.load() function:
+
+import numpy as np
+
+# Load all the arrays from the file
+data = np.load("all_arrays.npz")
+
+# Extract each array from the dictionary
+arrays = []
+for i in range(3000):
+    key = f"array_{i}"
+    arr = data[key]
+    arrays.append(arr)
+
+This will load all the arrays from the file into a dictionary called data, and then extract each array from the dictionary and append it to a list called arrays. You can then access each array using its index in the list, such as arrays[0], arrays[1], arrays[2], and so on.

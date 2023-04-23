@@ -1,0 +1,41 @@
+CONVOLUTION
+
+    using lucid from gogla   
+        
+        import numpy as np
+        import tensorflow as tf
+        from lucid.modelzoo import keras_imports
+        from lucid.optvis import objectives, render, transform
+
+        # load Keras model
+        model_path = 'my_model.h5'
+        model = keras_imports.import_keras_model(model_path)
+
+        # define visualization function
+        def visualize_activations(layer_name, channel):
+            def vis_fn(t_obj):
+                t_obj(layer_name)[:, :, :, channel].mean()
+            return vis_fn
+
+        # generate input image
+        input_image = np.random.rand(1, 1000, 120, 160, 3)
+
+        # define objective function
+        vis_fn = visualize_activations('conv3d_1', 0)
+        objective = objectives.Objective(vis_fn)
+
+        # optimize input image
+        transformed_image = transform.standard_transforms(input_image)
+        optimizer = tf.optimizers.Adam(learning_rate=0.05, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
+        _ = render.render_vis(model, objective, optimizer, transforms=transformed_image, thresholds=(512,), verbose=False)
+
+        # visualize output
+        from matplotlib import pyplot as plt
+        plt.imshow(transformed_image)
+        plt.show()
+
+
+LSTM
+
+    https://www.cs.colostate.edu/~draper/papers/patil_iciar19.pdf
+    https://www.cs.colostate.edu/~vision/skvis_toolset/index.php

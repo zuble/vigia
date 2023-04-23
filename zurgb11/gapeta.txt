@@ -1,0 +1,26 @@
+# type: ignore 
+
+in_height = 120; in_width = 160
+image_input = keras.Input(shape=(None, in_height, in_width, 3))
+c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
+c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
+
+c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation=ativa)(c3d_pooling1)
+c3d_pooling2 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer2)
+
+c3d_layer3 = keras.layers.Conv3D(16,(8,3,3), activation=ativa)(c3d_pooling2)
+c3d_pooling3 = keras.layers.MaxPooling3D((4,2,2))(c3d_layer3)
+
+feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3) #flatten spatial features to time series
+
+lstm1 = keras.layers.LSTM(1024,input_shape=(1200,feature_conv_4.shape[2]), return_sequences=True)(feature_conv_4)
+global_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
+
+dense_1 = keras.layers.Dense(128, activation=ativa)(global_feature)
+
+soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
+
+model = keras.Model(inputs=[image_input], outputs=[soft_max])
+
+so having this model how can i create a generator to use with model.fit from a video paths list and its corresponding labels, taking in consideration that for each path, if the label is 0 
+i want to grab a random window of n frames, and if its 1 i want to grab the the total video, and for both cases i want to grab the frames at a different fps than the original video without decoding unnecessary frames with cv.read, so try to use cv.grab and retrieve to jump those unwanted frames

@@ -1,0 +1,40 @@
+tf 2.2 docs
+    https://www.tensorflow.org/versions/r2.2/api_docs/python/tf/keras/layers/LSTM
+
+
+explanation
+    https://towardsdatascience.com/illustrated-guide-to-lstms-and-gru-s-a-step-by-step-explanation-44e9eb85bf21
+    https://github.com/MohammadFneish7/Keras_LSTM_Diagram
+    
+    https://www.kaggle.com/code/kmkarakaya/lstm-output-types-return-sequences-state
+
+
+if your input data consists of sequences of 100 arrays, each with 10 features, 
+you can specify the input shape as (100, 10)
+
+
+applied to action recognition/optical flow, but talks about ALSTM nd ConvLSTM
+    https://arxiv.org/pdf/1607.01794.pdf
+    https://arxiv.org/pdf/1803.07179.pdf
+    https://www.youtube.com/watch?v=oluw16wExDY&t=669
+
+
+chat gapeta
+
+    Q:
+        considering the a model in a frist step processes a input video of shape (1,1000,120,160,3)
+        trough a 3 combination oc conv3d+maxpooling layers, getting a output of shape (1,122,13,18,16). the spatial features are further flattend froming a tensor of shape (1,122,3744).
+        then this passes trough a lstm layer with 1024 units.
+        How is the output of the lstm layer related to the input ? 
+
+    A:
+        The input video has a shape of (1, 1000, 120, 160, 3), which means it has 1 sample, 1000 frames, a height and width of 120 and 160 pixels, respectively, and 3 color channels.
+
+        The model first applies a 3D convolutional layer followed by a max pooling layer three times, reducing the spatial dimensions of the input frames to (122, 13, 18, 16). The output of the last max pooling layer is then flattened into a tensor of shape (1, 122, 3744) using a function called tf.reshape.
+
+        This tensor is then fed into an LSTM layer with 1024 units. The LSTM layer takes in the sequence of features across time (i.e., the flattened tensor of shape (1, 122, 3744)) and produces a sequence of hidden states with the same shape as the input sequence (i.e., (1, 122, 1024)).
+
+        In other words, the LSTM layer processes the spatial features across time, using the temporal dependencies in the sequence to generate a new sequence of hidden states. The output of the LSTM layer is therefore a new sequence of features with the same number of frames as the input video, but each frame is represented by a hidden state with 1024 dimensions.
+
+        Thus, the output of the LSTM layer is related to the input video by capturing the temporal dependencies between the frames of the input video, while also reducing the dimensionality of the spatial features. Specifically, the LSTM layer generates a new sequence of features that represents a higher-level abstraction of the input video, where each frame is represented by a more compact and informative hidden state.
+

@@ -1,0 +1,53 @@
+# type: ignore 
+
+image_input = keras.Input(shape=(None, in_height, in_width, 3))
+    # ( 1 , frame_max , h , w , ch)    
+    # ( 1 , 1000 , 120 , 160 , 3)
+    
+    c3d_mp = keras.Sequential([
+        keras.layers.Conv3D(4,(2,3,3), activation=ativa),   #c3d_layer1
+        # ( 1 , 999 , 118, 158, 4 )
+        keras.layers.MaxPooling3D((1,2,2)),                 #c3d_pooling1
+        # ( 1, 999, 59, 79, 4 ) 
+           
+        keras.layers.Conv3D(8,(4,3,3), activation=ativa),   #c3d_layer2
+        # ( 1 , 996 , 57 , 77 , 8 )
+        keras.layers.MaxPooling3D((2,2,2)),                 #c3d_pooling2
+        # ( 1 , 498 , 28 , 38 , 8 )
+        
+        keras.layers.Conv3D(16,(8,3,3), activation=ativa),  #c3d_layer3
+        # ( 1 , 491 , 26 , 36 , 16 )
+        keras.layers.MaxPooling3D((4,2,2))                  #c3d_pooling3
+        # ( 1 , 122 , 13 , 18 , 16)    
+    ])
+    c3d_mp_out = c3d_mp(image_input)
+    # ( 1 , time_steps , spatl_featr1 , spatl_featr2 , spatl_featr3 ) 
+    # ( 1 , 122 , 13 , 18 , 16 )
+      
+    c3d_mp_flatten = keras.layers.Lambda(all_operations)(c3d_mp_out)  # flatten spatial features to time series
+    # ( 1 , time_steps , spatl_featr_flattned ) 
+    # ( 1 , 122        , 3744 )
+    
+    lstm1 = keras.layers.LSTM(1024, return_sequences=True)(c3d_mp_flatten) #input_shape=(120,c3d_mp_flatten.shape[2]),
+    # ( 1 , time_steps , units) 
+    # ( 1 , 122        , 1024 ) 
+    
+    global_rgb_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
+    # ( 1 , 1024 ) 
+
+
+    ''' waves coming '''
+    sinet_aas_len = 8
+    aas_input = tf.keras.layers.Input(shape=(None, sinet_aas_len)) #(TIMESTEPS,AAS)
+    gloabl_aas = keras.layers.GlobalMaxPooling1D()(aas_input) 
+    
+    
+    av_fusion = keras.layers.concatenate([global_rgb_feature, gloabl_aas], axis=1)
+
+
+    dense_1 = keras.layers.Dense(128, activation=ativa)(av_fusion)
+    soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)    
+    
+    model = keras.Model(inputs=[image_input , aas_input], 
+                        outputs=[soft_max])
+    model.summary()

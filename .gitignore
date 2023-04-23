@@ -5,3 +5,7 @@ zurgb00/model/model/
 *.out
 zurgb00/.neptune/
 zuwav/essentia
+zurgb11/utils/__pycache__
+zurgb00/utils/__pycache__
+zuav/utils/__pycache__
+zuwav/utils/__pycache__

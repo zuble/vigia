@@ -1,34 +1,41 @@
-import os, subprocess
+import os, subprocess , cv2
 from essentia.standard import *
 
 SERVER_TEST_PATH = '/raid/DATASETS/anomaly/XD_Violence/testing_copy'
+SERVER_TRAIN_PATH = '/raid/DATASETS/anomaly/XD_Violence/training_copy'
+SERVER_TRAIN_PATH_ALTER="/raid/DATASETS/anomaly/XD_Violence/training_copy_alter"
+
 SERVER_TEST_AUD_ORIG_PATH = '/raid/DATASETS/anomaly/XD_Violence/aud/testing/original'
 SERVER_TEST_AUD_MONO_PATH = '/raid/DATASETS/anomaly/XD_Violence/aud/testing/mono'
 
+
 #------------------------------------#
-def load_xdv_test(aac_path):
-    mp4_paths, mp4_labels = [],[]
+# xdviolence
+
+def load_xdv_test():
+    mp4_paths = []
     for root, dirs, files in os.walk(SERVER_TEST_PATH):
         for file in files:
             if file.find('.mp4') != -1:
                 mp4_paths.append(os.path.join(root, file))
     mp4_paths.sort()
-    for i in range(len(mp4_paths)):            
-        if 'label_A' in mp4_paths[i]:mp4_labels.append(0)
-        else:mp4_labels.append(1)
-    
-    print('acc_path',aac_path)
-    aac_paths, aac_labels = [],[]                            
-    for root, dirs, files in os.walk(aac_path):
+    return mp4_paths
+
+def load_xdv_train():
+    mp4_paths = []
+    for root, dirs, files in os.walk(SERVER_TRAIN_PATH):
         for file in files:
-            if file.find('.aac') != -1:
-                aac_paths.append(os.path.join(root, file))
-    aac_paths.sort()
-    for i in range(len(aac_paths)):               
-        if 'label_A' in aac_paths[i] : aac_labels.append(0)
-        else:aac_labels.append(1)                
-    
-    return mp4_paths,mp4_labels,aac_paths,aac_labels
+            if file.find('.mp4') != -1:
+                mp4_paths.append(os.path.join(root, file))
+    return mp4_paths
+
+def load_xdv_train_alter():
+    mp4_paths = []
+    for root, dirs, files in os.walk(SERVER_TRAIN_PATH_ALTER):
+        for file in files:
+            if file.find('.mp4') != -1:
+                mp4_paths.append(os.path.join(root, file))
+    return mp4_paths
 
 def get_index_per_label_from_filelist(file_list):
     '''retrives video indexs per label and all from file list xdv'''
@@ -66,7 +73,7 @@ def get_index_per_label_from_filelist(file_list):
 
 
 #---------------------------------------------#
-
+# audio
 
 from pylab import plot, show, figure, imshow
 #%matplotlib inline
@@ -111,7 +118,6 @@ def plot_mfcc_melbands(audio):
     show()
 
 
-
 def print_acodec_from_mp4(data,printt=False,only_sr=False):
     out=[]
     for i in range(len(data)):
@@ -136,13 +142,15 @@ def conv_mp4_to_aac(mp4_paths,dest_path,channels,dry_run=True):
             os.system(command)
 
 
-import moviepy.editor as mp
-import cv2 , datetime
+#---------------------------------------------#
+# testeing/training copy 
+
 '''
 test_mp4_paths,test_mp4_labels,test_aac_paths,test_aac_labels = load_xdv_test(SERVER_TEST_AUD_ORIG_PATH)
 for path in test_mp4_paths:
     recreate_mp4_with_right_duration(path)
 '''
+
 def get_total_time(path):
         videocv = cv2.VideoCapture(path)
         total_frames = int(videocv.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -151,7 +159,7 @@ def get_total_time(path):
         videocv.release()
         return total_time
     
-def recreate_mp4_with_right_duration(path):
+def recreate_mp4_with_right_duration(path, dry_run=True):
     print('\n#--------------------------------------------------------------#')
     print('\nold',path)
     total_time = get_total_time(path)
@@ -161,17 +169,17 @@ def recreate_mp4_with_right_duration(path):
     dir = os.path.dirname(path)
     aux_path = os.path.join(dir,aux_fn)
     print('\naux',aux_path)
-    os.rename(path,aux_path)
-
+    if not dry_run: os.rename(path,aux_path)
+    
     command = "ffmpeg -nostats -hide_banner -v warning -i "+str('"'+aux_path+'"')+" -ss 0 -t "+str(total_time)+' '+str('"'+path+'"')
     print('\n',command)
-    os.system(command)
+    if not dry_run: os.system(command)
     
-    print("deleteing aux")
-    os.remove(aux_path)
-
-    total_time = get_total_time(path)
-    print("\ntotal_time_new",total_time)
+    print("\ndel aux")
+    if not dry_run:
+        os.remove(aux_path)
+        total_time = get_total_time(path)
+        print("\ntotal_time_new",total_time)
 
     # shit with the codecs fml
     #videomp = mp.VideoFileClip(path).subclip(0,total_time)

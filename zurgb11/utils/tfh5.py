@@ -64,8 +64,11 @@ def form_model(params):
     print("\nFORM_MODEL\n")
 
     in_height = 120; in_width = 160
-    image_input = keras.Input(shape=(None, in_height, in_width, 3))
+    image_input = keras.Input(shape=(None, in_height, in_width, 3), name='input_layer')
     #Freeze the batch normalization
+    
+    print_input_shape = keras.layers.Lambda(lambda x: tf.shape(x), name='print_input_shape')(image_input)
+    
     
     #https://www.tensorflow.org/api_docs/python/tf/keras/activations
     #https://www.tensorflow.org/api_docs/python/tf/nn/leaky_relu
@@ -99,10 +102,10 @@ def form_model(params):
     dense_1 = keras.layers.Dense(128, activation=ativa)(global_feature)
     #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
     
-    soft_max = keras.layers.Dense(1, activation='sigmoid')(dense_1)
+    soft_max = keras.layers.Dense(1, activation='sigmoid', name='output_layer')(dense_1)
     
-    model = keras.Model(inputs=[image_input], outputs=[soft_max])
-    #model.summary()
+    model = keras.Model(inputs=[image_input], outputs=[soft_max , print_input_shape])
+    model.summary()
    
    
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
@@ -125,10 +128,11 @@ def form_model(params):
     ]
 
     model.compile(optimizer=optima, 
-                    loss= 'binary_crossentropy', 
+                    loss= {'output_layer':'binary_crossentropy'}, 
                     #loss_weights = class_weights,
                     #metrics=['accuracy']
-                    metrics=METRICS)
+                    metrics={'output_layer':METRICS}
+                )
     
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
     

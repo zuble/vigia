@@ -1,4 +1,4 @@
-import os , logging 
+import os , logging , time
 
 import numpy as np
 import tensorflow as tf
@@ -136,7 +136,10 @@ def form_model(params):
     
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
     
-    return model
+    time_str = str(time.time()); 
+    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+str(params["frame_max"])
+    print(model_name)
+    return model , model_name
 
 
 #--------------------------------------------------------#

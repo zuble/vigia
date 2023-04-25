@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from queue import Queue
 import numpy as np
 
-import utils.util as util
+from utils import xdv , util
 import moviepy.editor as mp
 
 
@@ -284,13 +284,13 @@ def init_watch_live(watch_this,from_train_or_test,fast=False):
     print("\n\nINIT WATCH LIVE")
     
 
-    test_mp4_paths = util.load_xdv_test()
+    test_mp4_paths = xdv.load_test_copy()
     print('\n  test_mp4_paths',np.shape(test_mp4_paths))
-    test_labels_indexs = util.get_index_per_label_from_filelist(test_mp4_paths)
+    test_labels_indexs = xdv.get_index_per_label_from_filelist(test_mp4_paths)
 
-    train_mp4_paths = util.load_xdv_train()
+    train_mp4_paths = xdv.load_train_copy()
     print('\n  train_mp4_paths',np.shape(train_mp4_paths))
-    train_labels_indexs = util.get_index_per_label_from_filelist(train_mp4_paths)
+    train_labels_indexs = xdv.get_index_per_label_from_filelist(train_mp4_paths)
 
     if from_train_or_test == 'train':
         paths = train_mp4_paths; labels_indexs = train_labels_indexs   

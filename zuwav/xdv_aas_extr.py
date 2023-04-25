@@ -3,6 +3,7 @@ import utils.util as util
 import moviepy.editor as mp
 import numpy as np
 import json , time
+#import tensorflow as tf
 
 
 test_config = {
@@ -81,4 +82,4 @@ for fp in paths:
            
 
 # Save all the arrays to a single file
-np.save("/raid/DATASETS/.zuble/vigia/zuwav/xdv_aas/xdvtrain_aases_tlpf_aps_full.npy", aas_aar_dict)
+#np.save("/raid/DATASETS/.zuble/vigia/zuwav/xdv_aas/xdvtrain_aases_tlpf_aps_full.npy", aas_aar_dict)

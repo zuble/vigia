@@ -11,8 +11,8 @@ import numpy as np
 import moviepy.editor as mp
 
 
-import utils.util as util
-
+from utils import util
+from utils import xdv
 
 
 '''
@@ -412,11 +412,11 @@ def FSDSINET_runner(mp4path , total_or_step):
 def init(train_or_test,watch_this,total_or_step,fast=False):
     print("\n\nINIT WATCH LIVE")
     
-    train_mp4_paths = util.load_xdv_train() ; print('\n  train_mp4_paths',np.shape(train_mp4_paths))
-    train_labels_indexs = util.get_index_per_label_from_filelist(train_mp4_paths)
+    train_mp4_paths = xdv.load_train_copy() ; print('\n  train_mp4_paths',np.shape(train_mp4_paths))
+    train_labels_indexs = xdv.get_index_per_label_from_filelist(train_mp4_paths)
     
-    test_mp4_paths = util.load_xdv_test() ; print('\n  ******\n  test_mp4_paths',np.shape(test_mp4_paths))
-    test_labels_indexs = util.get_index_per_label_from_filelist(test_mp4_paths)
+    test_mp4_paths = xdv.load_test_copy() ; print('\n  ******\n  test_mp4_paths',np.shape(test_mp4_paths))
+    test_labels_indexs = xdv.get_index_per_label_from_filelist(test_mp4_paths)
 
     if train_or_test == 'train': paths = train_mp4_paths;labels_indexs = train_labels_indexs
     elif train_or_test == 'test': paths = test_mp4_paths;labels_indexs = test_labels_indexs
@@ -458,8 +458,8 @@ def init(train_or_test,watch_this,total_or_step,fast=False):
         #    FSDSINET_runner(path,total_or_step)
         
         #paths = ["/raid/DATASETS/anomaly/XD_Violence/training_copy/v=WpxJJFcWM8s__#1_label_A.mp4"]
-        train_alter_paths = util.load_xdv_train_alter()
-        test_labels_indexs = util.get_index_per_label_from_filelist(train_alter_paths)
+        train_alter_paths = xdv.load_train_alter()
+        test_labels_indexs = xdv.get_index_per_label_from_filelist(train_alter_paths)
         for path in train_alter_paths:
             print('\n#-------------------#$%--------------------#\n',path.replace("/raid/DATASETS/anomaly/XD_Violence/training_copy_alter/",""))
             FSDSINET_runner(path,total_or_step)

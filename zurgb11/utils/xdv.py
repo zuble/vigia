@@ -42,6 +42,7 @@ def train_valdt_files(tframes=False):
 
     train_fn, valdt_fn = train_test_split(full_train_fn, test_size=0.2,shuffle=False)
 
+    
     if tframes:
         train_tot_frames = []
         for k in range(len(train_fn)):
@@ -57,7 +58,6 @@ def train_valdt_files(tframes=False):
             video.release()
             valdt_tot_frames.append(tot_frames)
 
-    
 
     for i in range(len(train_fn)):
         if 'label_A' in train_fn[i]:train_normal_fn.append(train_fn[i]);train_normal_labels.append(0);train_labels.append(0)

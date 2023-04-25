@@ -3,7 +3,9 @@ import os , logging , time
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras.callbacks import ModelCheckpoint
 
+from utils import globo
 
 #--------------------------------------------------------#
 # GPU TF CONFIGURATION
@@ -17,10 +19,11 @@ def set_memory_growth():
         try:
             # Currently, memory growth needs to be the same across GPUs
             for gpu in gpus:
+                print(gpu,"set memory growth True\n")
                 tf.config.experimental.set_memory_growth(gpu, True)
             
-            logical_gpus = tf.config.list_logical_devices('GPU')
-            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+            #logical_gpus = tf.config.list_logical_devices('GPU')
+            #print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
         except RuntimeError as e:
             # Memory growth must be set before GPUs have been initialized
             print(e)
@@ -40,6 +43,12 @@ def set_tf_loglevel(level):
     print("\nNum GPUs Available: ", len(gpus))
     #for i in range(len(gpus)) :print(str(gpus[i]))
 
+def limit_gpu_gb(i):
+    gpus = tf.config.list_physical_devices('GPU')
+    tf.config.set_logical_device_configuration(
+        gpus[i],
+        [tf.config.LogicalDeviceConfiguration(memory_limit=31744)]
+    )
 
 #--------------------------------------------------------#
 ## MODEL
@@ -59,16 +68,14 @@ def gelu(x):
 #get_custom_objects().update({'gelu': Activation(gelu)})
 
 
-
 def form_model(params):
     print("\nFORM_MODEL\n")
 
     in_height = 120; in_width = 160
     image_input = keras.Input(shape=(None, in_height, in_width, 3), name='input_layer')
-    #Freeze the batch normalization
-    
-    print_input_shape = keras.layers.Lambda(lambda x: tf.shape(x), name='print_input_shape')(image_input)
-    
+    # ( 1 , frame_max , h , w , ch)    
+    # ( 1 , 1000 , 120 , 160 , 3)
+
     
     #https://www.tensorflow.org/api_docs/python/tf/keras/activations
     #https://www.tensorflow.org/api_docs/python/tf/nn/leaky_relu
@@ -77,8 +84,34 @@ def form_model(params):
     elif params["ativa"]=='relu': ativa = 'relu'
     else: raise Exception("no ativa named assim")
 
+    
+    c3d_mp = keras.Sequential([
+        keras.layers.Conv3D(4,(2,3,3), activation=ativa),   #c3d_layer1
+        keras.layers.MaxPooling3D((1,2,2)),                 #c3d_pooling1
+
+        keras.layers.Conv3D(8,(4,3,3), activation=ativa),   #c3d_layer2
+        keras.layers.MaxPooling3D((2,2,2)),                 #c3d_pooling2
+
+        keras.layers.Conv3D(16,(8,3,3), activation=ativa),  #c3d_layer3
+        keras.layers.MaxPooling3D((4,2,2))                  #c3d_pooling3
+    ])
+    c3d_mp_out = c3d_mp(image_input)
+    # ( 1 , time_steps , spatl_featr1 , spatl_featr2 , spatl_featr3 ) 
+    # ( 1 , 122 , 13 , 18 , 16 )  
+    
+    c3d_mp_flatten = keras.layers.Lambda(all_operations)(c3d_mp_out)  # flatten spatial features to time series
+    # ( 1 , time_steps , spatl_featr_flattned ) 
+    # ( 1 , 122        , 3744 )
+    
+    lstm1 = keras.layers.LSTM(1024, return_sequences=True)(c3d_mp_flatten) #input_shape=(120,c3d_mp_flatten.shape[2]),
+    # ( 1 , time_steps , units) 
+    # ( 1 , 122        , 1024 ) 
+    
+    global_rgb_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
+    # ( 1 , 1024 ) 
+    
+    '''    
     c3d_layer1 = keras.layers.Conv3D(4,(2,3,3), activation=ativa)(image_input)
-    #c3d_layer1 = keras.layers.Activation(activation=ativa)(c3d_layer1) #another way
     c3d_pooling1 = keras.layers.MaxPooling3D((1,2,2))(c3d_layer1)
     
     c3d_layer2 = keras.layers.Conv3D(8,(4,3,3), activation=ativa)(c3d_pooling1)
@@ -86,27 +119,22 @@ def form_model(params):
     
     c3d_layer3 = keras.layers.Conv3D(16,(8,3,3), activation=ativa)(c3d_pooling2)
     c3d_pooling3 = keras.layers.MaxPooling3D((4,2,2))(c3d_layer3)
-    
-    #c3d_layer4 = keras.layers.Conv3D(32,(2,3,3), activation=activa)(c3d_pooling3)
-    #c3d_pooling4 = keras.layers.MaxPooling3D((2,2,2))(c3d_layer4)
-    
+
     feature_conv_4 = keras.layers.Lambda(all_operations)(c3d_pooling3) #flatten spatial features to time series
     
     lstm1 = keras.layers.LSTM(1024,input_shape=(1200,feature_conv_4.shape[2]), return_sequences=True)(feature_conv_4)
     #lstm2 = keras.layers.LSTM(512, return_sequences=True)(lstm1)
     
     global_feature = keras.layers.GlobalMaxPooling1D()(lstm1)
+    '''
     
-    #ADD THE AUDIO FEATURE HERE 
+    #waves 
     
-    dense_1 = keras.layers.Dense(128, activation=ativa)(global_feature)
-    #dense_2 = keras.layers.Dense(13, activation='sigmoid')(dense_1)
+    hidden_dense_1 = keras.layers.Dense(128, activation=ativa)(global_rgb_feature)
+    sigmoid = keras.layers.Dense(1, activation='sigmoid', name='output_layer')(hidden_dense_1)
     
-    soft_max = keras.layers.Dense(1, activation='sigmoid', name='output_layer')(dense_1)
-    
-    model = keras.Model(inputs=[image_input], outputs=[soft_max , print_input_shape])
-    model.summary()
-   
+    model = keras.Model(inputs=[image_input], outputs=[sigmoid])
+
    
     #class_weights = [10,10,10,10,10,10,10,10,10,10,10,10,0.1,10]
     #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
@@ -128,19 +156,38 @@ def form_model(params):
     ]
 
     model.compile(optimizer=optima, 
-                    loss= {'output_layer':'binary_crossentropy'}, 
+                    loss = 'binary_crossentropy', 
+                    #loss= {'output_layer':'binary_crossentropy'}, 
                     #loss_weights = class_weights,
-                    #metrics=['accuracy']
-                    metrics={'output_layer':METRICS}
+                    metrics = METRICS
+                    #metrics={'output_layer':METRICS}
                 )
     
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
     
     time_str = str(time.time()); 
     model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+str(params["frame_max"])
-    print(model_name)
+    print("\n\t",model_name)
     return model , model_name
 
+#--------------------------------------------------------#
+## CALLBACKS
+
+def ckpt_clbk(model_name):
+    #https://keras.io/api/callbacks/model_checkpoint/
+    p = os.path.join(globo.CKPT_PATH,model_name)
+    if not os.path.exists(p):
+        os.makedirs(p)
+    else:raise Exception(f"{p} eristes")
+    
+    return ModelCheckpoint( filepath=p+'/'+model_name+'_ckpt-{epoch:02d}-{loss:.2f}.h5' , \
+                            monitor='loss',\
+                            save_weights_only=True,\
+                            #save_best_only=True,\
+                            mode='auto',\
+                            save_freq='epoch',\
+                            verbose = 1)
+        
 
 #--------------------------------------------------------#
 ## MIL MODEL IDEA FORMULATION

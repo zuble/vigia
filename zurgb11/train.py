@@ -1,33 +1,29 @@
-# %%
 import os, time, random, logging , datetime , cv2 , csv , subprocess
-import numpy as np
 
+import matplotlib.pyplot as plt
+import numpy as np
 import tensorflow as tf
 print("tf",tf.version.VERSION)
-from tensorflow import keras
+#from tensorflow import keras
+from tqdm.keras import TqdmCallback
 
 from utils import globo ,  xdv , tfh5
 
 
 ''' GPU CONFIGURATION '''
-
 tfh5.set_tf_loglevel(logging.ERROR)
-tfh5.tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
-tfh5.set_memory_growth()
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-os.environ["CUDA_VISIBLE_DEVICES"]="1,2"
+tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
+#tfh5.set_memory_growth()
+#os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'false'
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
-# %%
+
 ''' TRAIN & VALDT '''
 #train_fn, train_labels, train_tot_frames, valdt_fn, valdt_labels , valdt_tot_frames = xdv.train_valdt_files(tframes=True)
-train_fn, train_labels, valdt_fn, valdt_labels = xdv.train_valdt_files()
+train_fp, train_labl, valdt_fp, valdt_labl = xdv.train_valdt_files()
 
-update_index_train = range(0, len(train_fn))
-update_index_valdt = range(0, len(valdt_fn))
 
-# %%
 ''' CONFIGS '''
-
 train_config = {
     "frame_step":2, #24 fps -> 12
     
@@ -38,7 +34,7 @@ train_config = {
     "augment":True,
     "shuffle":False,
     
-    "ativa" : 'leakyrelu',
+    "ativa" : 'relu',
     "optima" : 'sgd',
     "batch_type" : 0,   # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
     "frame_max" : 8000,
@@ -48,27 +44,23 @@ train_config = {
 }
 
 
-# %%
-class PrintDataCallback(tf.keras.callbacks.Callback):
-    def on_batch_end(self, batch, logs=None):
-        # Access the input data shape of the current batch
-        input_batch_shape = self.model.get_layer('print_input_shape').output
-
-        # Run the model on a dummy input to get the actual input shape
-        input_shape = self.model.predict(np.zeros((1, *input_batch_shape.shape)))
-
-        # Print the input shape
-        print("Input shape:\n", input_shape)
-
-# %%
-class DataGen(keras.utils.Sequence):
-    def __init__(self, vpath_list, label_list, config , valdt=False):
+class DataGen(tf.keras.utils.Sequence):
+    def __init__(self, vpath_list, label_list, config , mode = 'train' , debug = False):
         
-        self.valdt = valdt
+        self.mode = mode
+        if mode == 'valdt' : self.valdt = True ;  self.train = False
+        else: self.train = True ; self.valdt = False
+        print("\n\nDataGen",mode,self.train,self.valdt)
+        
+        
         self.vpath_list = vpath_list
+        self.len_vpath_list = len(self.vpath_list)
         self.label_list = label_list
+        print("vpath , label",self.len_vpath_list,(len(label_list)))
         
-        print(len(vpath_list),(len(label_list)))
+        
+        self.frame_step = config["frame_step"]
+        self.maxpool3_min_tframes = 21 * self.frame_step
         
         self.batch_size = config["batch_size"]
         self.frame_max = config["frame_max"]
@@ -79,143 +71,196 @@ class DataGen(keras.utils.Sequence):
         self.augment = config["augment"]
         self.shuffle = config["shuffle"]
         
-        self.len_vpath_list = len(self.vpath_list)
+        
         #self.indices = np.arange(self.len_vpath_list)
+        if self.augment and self.train: self.lleenn = self.len_vpath_list * 2
+        else: self.lleenn = self.len_vpath_list
 
-        self.frame_step = config["frame_step"]
-    
-    
-    def skip_ms(self,cap):
+        self.debug = debug
+
+ 
+    def skip_frames(self,cap,fs):
         start_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
         #print("skip_start",start_frame)
         while True:
             success = cap.grab()
             curr_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
 
-            if not success or curr_frame - start_frame >= self.frame_step:break
+            if not success or curr_frame - start_frame >= fs:break
         
-        if not success:return success, None, start_frame + self.frame_step
+        if not success:return success, None, start_frame + fs
 
         success, image = cap.retrieve()
         return success, image, curr_frame        
+    
+    def showfr(self, fr1):
+        for frame in fr1:
+            cv2.imshow("Frame", frame)
+            key = cv2.waitKey(0)
+            if key == ord('q'): break  # quit
+        cv2.destroyAllWindows()
         
         
     def __len__(self):
-        if not self.valdt: print("\n\n__len__ = n batchs = ",int(np.ceil(self.len_vpath_list / float(self.batch_size ))) ," w/ '2' vid each")
-        else: print("\n\n__len__ = n batchs = ",int(np.ceil(self.len_vpath_list / float(self.batch_size ))) ," w/ 1 vid each")
-        return self.len_vpath_list
-           
+        if self.debug: print("\n\n__len__",self.mode,"= n batchs = ",self.lleenn, " w/ '1' vid_frames each")
+        return self.lleenn
+        
+        
     def __getitem__(self, idx):
-        #batch_indices = self.indices[idx * self.batch_size : (idx+1) * self.batch_size]
-        print("\n\nbatch_indx",idx)
+        ## idx 0 - flipp False - vpath[0] 
+        ## idx 1 - flipp True - vpath[0] 
         
-        batch_frames , batch_frames_flip , batch_labels = [] , [] , []
+        ## flipp flag
+        if self.train and self.augment: i = idx // 2 ; flipp = idx % 2 == 1
+        else: i = idx; flipp = False
         
-        #for i, index in enumerate(batch_indices):
-        #vpath = self.vpath_list[index]
-        #label = self.label_list[index] 
-        vpath = self.vpath_list[idx]
-        label = self.label_list[idx]
-    
+        batch_frames , batch_labels = [] , [] 
+        
+        vpath = self.vpath_list[i]
+        label = self.label_list[i]
+        if not label:label_str=str('NORMAL')
+        else:label_str=str('ABNORMAL')
+        
+        
         video = cv2.VideoCapture(vpath)
         tframes = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-        print("\n*************",vpath , label , tframes)
         
-        ## if normal > frame_max picks random frame_max W
-        if label == 0 and tframes > self.frame_max :
-            start_index = random.randint(0, tframes - self.frame_max)
-            end_index = start_index + self.frame_max
-            video.set(cv2.CAP_PROP_POS_FRAMES, start_index)
-        ## else ingests full video
-        else: 
-            start_index = 0
-            end_index = tframes
+         
+        # Check if the video has enough frames
+        if tframes >= self.maxpool3_min_tframes:
+            
+            if label == 0 and tframes > self.frame_max:
+                vid_start_idx = random.randint(0, tframes - self.frame_max)
+                vid_end_idx = vid_start_idx + self.frame_max
+                video.set(cv2.CAP_PROP_POS_FRAMES, vid_start_idx)
+            else: vid_start_idx = 0; vid_end_idx = tframes
+            frame_step = self.frame_step
+            
+        else: vid_start_idx = 0; vid_end_idx = tframes; frame_step = 1
         
-        print("sstart_index,end_index",start_index , end_index)
         
         frames = []
         curr_frame = 0
         success, frame = video.read()
-        for j in range(end_index - start_index):
+        for j in range(vid_end_idx - vid_start_idx):
             
-            if not success or curr_frame > end_index: break
+            if not success or curr_frame > vid_end_idx: 
+                if self.debug: print(f"Frame read failed at idx: {j}, curr_frame: {curr_frame}, vid_end_idx: {vid_end_idx}")
+                break
             
             frame = cv2.resize(frame, (self.in_width, self.in_height))
             frame_arr = np.array(frame)/255.0
             frames.append(frame_arr)
-            
             ## jumps the next frame wo decoding
-            success, frame, curr_frame = self.skip_ms(video)
-            #print("skip_end",curr_frame)
-                
-        
+            success, frame, curr_frame = self.skip_frames(video,frame_step)
+            if self.debug: print(f"Frame read successful at idx: {j}, curr_frame: {curr_frame}, success: {success}")
+            
+             
         frames_arr = np.array(frames)
-        frames_arr_flip = np.flip(frames_arr, axis=2)
-        print("frames",frames_arr.shape,frames_arr_flip.shape)
-
+        
+        #self.showfr(frames_arr)
+        if flipp:frames_arr = np.flip(frames_arr, axis=2)
+        #self.showfr(frames_arr)
+        
         batch_frames.append(frames_arr)
-        batch_frames_flip.append(frames_arr_flip)
         batch_labels.append(label)
         
-        XN = np.array(batch_frames).astype(np.float32)
-        XF = np.array(batch_frames_flip).astype(np.float32)
+        X = np.array(batch_frames).astype(np.float32)
         y = np.array(batch_labels).astype(np.float32)
+         
+         
+        ## prints
+        if self.debug:print(f"\n********** {self.mode}_{i} **** {label_str} ***************\n" \
+                            f"    {tframes} @ {os.path.basename(vpath)}\n"\
+                            f"    vid_idx {vid_start_idx} {vid_end_idx}\n\n"
+                            f"    X  w/ flip {flipp}\n"
+                            f"    {frames_arr.shape}, dtype: {frames_arr.dtype}\n"
+                            f"    {X.shape}, dtype: {X.dtype}\n"
+                            f"    y {y}\n")
+        else:print( f"\n\n\n£££ {self.mode}_{i} * {label_str} * {tframes} @ {os.path.basename(vpath)}\n"
+                    f"    vid_idx {vid_start_idx} {vid_end_idx}\n"
+                    f"    X {X.shape}  w/ flip {flipp} @{X.dtype} , y {y}")
         
+        return X , y
 
-        if self.valdt or not self.augment:
-            print("valdt")
-            print("XN ",XN.dtype,XN.shape )
-            print("y",y.shape)
-            return XN , y
-        elif self.augment:
-            print("augment , train")
-            X = np.concatenate([XN, XF], axis=0)
-            Y = np.concatenate([y, y], axis=0)
-            print("XN ",XN.dtype,XN.shape )
-            print("XF ",XF.dtype,XF.shape )
-            print("X ",X.dtype,X.shape )
-            print("Y ",Y.dtype,Y.shape)
-            return X , Y
-
-    #def on_epoch_end(self):
-    #    if self.shuffle:
-    #        np.random.shuffle(self.indexes)
+   
+          
+if __name__ == "__main__":
     
-
-
-# %% [markdown]
-# If there are only 8 videos being fed to the training phase, and batch_size is set to 1 with augment enabled, then the generator will yield 16 batches for each epoch of training, as each video will be flipped horizontally to create a second batch. This means that each video will be processed twice per epoch, once in its original orientation and once flipped horizontally.
-# 
-# After all of the training batches have been processed, the fit method will move onto the validation data, which is processed separately using a different generator (valdt_generator).
-# 
-# If augment is set to False, then each video will only yield one batch, regardless of the batch_size. So in this case, with a batch_size of 1, the generator would yield 8 batches for training before moving onto the validation data.
-
-# %%
-train_generator = DataGen(train_fn, train_labels, train_config)
-
-valdt_generator = DataGen(valdt_fn, valdt_labels, train_config , True)
-
-## len(train_fn) / batch_size = number of video per batch = __len__
-## if batch_size 1 , each batch contains a video
-## if augmt =True & batch_size 1 , each batch contains "2" videos
-
-model,model_name = tfh5.form_model(train_config)
-
-history = model.fit(train_generator, 
-                    epochs = train_config["epochs"] ,
-                    steps_per_epoch = len(train_fn),
-                    
-                    verbose=2,
-                    
-                    validation_data = valdt_generator ,
-                    validation_steps = len(valdt_fn),
-                    
-                    use_multiprocessing = True , 
-                    workers = 32 #,
-                    #callbacks=[print_data_callback]
-                  )
-
-# Save the history to a CSV file
-hist_csv_file = globo.HIST_PATH + model_name + '_history.csv'
-with open(hist_csv_file, 'w', newline='') as file:writer = csv.writer(file);writer.writerow(history.history.keys());writer.writerows(zip(*history.history.values()))
+    ''' DATA '''
     
+    ## dummy GENERATOR
+    
+    #t = train_fp[:4]   ;   v = valdt_fp[:4] 
+    #tl = train_lbl[:4] ; vl = valdt_labels[:4]
+    #train_generator = DataGen(t, tl, train_config )
+    #valdt_generator = DataGen(v, vl, train_config , 'valdt' )
+
+    ## real GERADOR
+    train_generator = DataGen(train_fp, train_labl, train_config)
+    valdt_generator = DataGen(valdt_fp, valdt_labl, train_config , 'valdt')
+    
+    
+    ## TF.DATA FROM GENERATOR
+    '''def data_gen_wrapper(data_gen):
+        for i in range(len(data_gen)):
+            yield data_gen[i]
+        
+    output_types = (tf.float32, tf.float32)
+    output_shapes = (
+        tf.TensorShape((None , None , train_config["in_height"], train_config["in_width"], 3)),
+        tf.TensorShape((None,))
+    )
+    train_dataset = tf.data.Dataset.from_generator(
+        lambda: data_gen_wrapper(train_generator),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )
+    valdt_dataset = tf.data.Dataset.from_generator(
+        lambda: data_gen_wrapper(valdt_generator),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )'''
+    
+    
+    ''' MODEL '''
+    ## MULTI GPU STRATEGY
+    #strategy = tf.distribute.MirroredStrategy()
+    #print('\nSTATEGY\nNumber of devices: {}'.format(strategy.num_replicas_in_sync))
+    #with strategy.scope():
+    #    model,model_name = tfh5.form_model(train_config)
+    
+    ## SINGLE
+    model,model_name = tfh5.form_model(train_config)
+    
+    ## CLBK's
+    ckpt_clbk = tfh5.ckpt_clbk(model_name)
+    early_stop_clbk = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
+    tqdm_clbk = TqdmCallback(train_config["epochs"],len(train_fp)*2,train_config["batch_size"],verbose=1)
+    
+    
+    ''' FIT '''
+    history = model.fit(train_generator, 
+                        epochs = train_config["epochs"] ,
+                        steps_per_epoch = len(train_fp) * 2,
+                        
+                        verbose=2,
+                        
+                        validation_data = valdt_generator ,
+                        validation_steps = len(valdt_fp),
+                        
+                        use_multiprocessing = True , 
+                        #workers = 8 #,
+                        callbacks=[ckpt_clbk , early_stop_clbk , tqdm_clbk ]
+                    )
+
+
+    ''' SAVINGS '''
+    model.save(globo.MODEL_PATH + model_name + '.h5')
+    model.save(globo.MODEL_PATH + model_name )
+    
+    model.save_weights(globo.WEIGHTS_PATH + model_name + '_weights.h5')
+    
+    hist_csv_file = globo.HIST_PATH + model_name + '_history.csv'
+    with open(hist_csv_file, 'w', newline='') as file:writer = csv.writer(file);writer.writerow(history.history.keys());writer.writerows(zip(*history.history.values()))
+        

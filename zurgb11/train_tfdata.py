@@ -46,11 +46,12 @@ train_config = {
 
 
 class DataGen(tf.keras.utils.Sequence):
-    def __init__(self, vpath_list, label_list, config , mode = 'train' , debug = False):
+    def __init__(self, vpath_list, label_list, config , mode , debug = False):
         
         self.mode = mode
-        if mode == 'valdt' : self.valdt = True ;  self.train = False
-        else: self.train = True ; self.valdt = False
+        if mode == 'valdt'  : self.valdt = True ; self.train = False
+        elif mode == 'train': self.train = True ; self.valdt = False
+        else: raise Exception("mode can be 'train' or 'valdt' ")
         print("\n\nDataGen",mode,self.train,self.valdt)
         
         
@@ -193,14 +194,14 @@ if __name__ == "__main__":
     
     ## dummy GENERATOR
     
-    #t = train_fp[:4]   ;   v = valdt_fp[:4] 
-    #tl = train_lbl[:4] ; vl = valdt_labels[:4]
-    #train_generator = DataGen(t, tl, train_config )
-    #valdt_generator = DataGen(v, vl, train_config , 'valdt' )
+    t = train_fp[:4]   ;   v = valdt_fp[:4] 
+    tl = train_labl[:4] ; vl = valdt_labl[:4]
+    train_generator = DataGen(t, tl, train_config , 'train' )
+    valdt_generator = DataGen(v, vl, train_config , 'valdt' )
 
     ## real GERADOR
-    train_generator = DataGen(train_fp, train_labl, train_config)
-    valdt_generator = DataGen(valdt_fp, valdt_labl, train_config , 'valdt')
+    #train_generator = DataGen(train_fp, train_labl, train_config, 'train')
+    #valdt_generator = DataGen(valdt_fp, valdt_labl, train_config, 'valdt')
     
     
     ## TF.DATA FROM GENERATOR
@@ -253,7 +254,7 @@ if __name__ == "__main__":
                         
                         use_multiprocessing = True , 
                         #workers = 8 #,
-                        callbacks=[ckpt_clbk , early_stop_clbk , tqdm_clbk ]
+                        #callbacks=[ckpt_clbk , early_stop_clbk , tqdm_clbk ]
                     )
 
 

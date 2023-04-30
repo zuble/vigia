@@ -14,6 +14,7 @@ SERVER_TRAIN_COPY_ALTER_PATH1 = "/raid/DATASETS/anomaly/XD_Violence/training_cop
 SERVER_TRAIN_COPY_ALTER_PATH2 = SERVER_TRAIN_COPY_ALTER_PATH1 + '/CUT'
 
 
+FSDSINET_PATH = '/raid/DATASETS/.zuble/vigia/zuwav00/fsd-sinet-essentia/models'
 
 MODEL_PATH = BASE_VIGIA_DIR+'/zuwav11/model/model/'
 CKPT_PATH = BASE_VIGIA_DIR+'/zuwav11/model/ckpt/'

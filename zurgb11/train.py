@@ -1,6 +1,6 @@
-import os, time, random, logging , datetime , cv2 , csv , subprocess
+import os, random, logging , cv2 , csv
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 print("tf",tf.version.VERSION)
@@ -11,11 +11,16 @@ from utils import globo ,  xdv , tfh5
 
 
 ''' GPU CONFIGURATION '''
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
+
 tfh5.set_tf_loglevel(logging.ERROR)
 tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
+
+tfh5.check_gpu_conn()
+
 #tfh5.set_memory_growth()
 #os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'false'
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+#tfh5.limit_gpu_gb(2)
 
 
 ''' TRAIN & VALDT '''
@@ -40,16 +45,17 @@ train_config = {
     "frame_max" : 8000,
     "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
     
-    "epochs" : 1
+    "epochs" : 30
 }
 
 
 class DataGen(tf.keras.utils.Sequence):
-    def __init__(self, vpath_list, label_list, config , mode = 'train' , debug = False):
+    def __init__(self, vpath_list, label_list, config , mode , debug = False , printt = True):
         
         self.mode = mode
-        if mode == 'valdt' : self.valdt = True ;  self.train = False
-        else: self.train = True ; self.valdt = False
+        if mode == 'valdt'  : self.valdt = True ; self.train = False
+        elif mode == 'train': self.train = True ; self.valdt = False
+        else: raise Exception("mode can be 'train' or 'valdt' ")
         print("\n\nDataGen",mode,self.train,self.valdt)
         
         
@@ -77,7 +83,7 @@ class DataGen(tf.keras.utils.Sequence):
         else: self.lleenn = self.len_vpath_list
 
         self.debug = debug
-
+        self.printt = printt
  
     def skip_frames(self,cap,fs):
         start_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
@@ -123,10 +129,13 @@ class DataGen(tf.keras.utils.Sequence):
         
         
         video = cv2.VideoCapture(vpath)
+        if video.isOpened(): pass
+        else: print(f"Failed to open video: {vpath}")
+        
         tframes = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
         
          
-        # Check if the video has enough frames
+        # Check if the video has enough frames so shape isnt -1
         if tframes >= self.maxpool3_min_tframes:
             
             if label == 0 and tframes > self.frame_max:
@@ -177,9 +186,9 @@ class DataGen(tf.keras.utils.Sequence):
                             f"    {frames_arr.shape}, dtype: {frames_arr.dtype}\n"
                             f"    {X.shape}, dtype: {X.dtype}\n"
                             f"    y {y}\n")
-        else:print( f"\n\n\n£££ {self.mode}_{i} * {label_str} * {tframes} @ {os.path.basename(vpath)}\n"
-                    f"    vid_idx {vid_start_idx} {vid_end_idx}\n"
-                    f"    X {X.shape}  w/ flip {flipp} @{X.dtype} , y {y}")
+        elif self.printt:print(  f"\n\n\n£££ {self.mode}_{i} * {label_str} * {tframes} @ {vpath}\n"
+                                f"    vid_idx {vid_start_idx} {vid_end_idx}\n"
+                                f"    X {X.shape}  w/ flip {flipp} @{X.dtype} , y {y}")
         
         return X , y
 
@@ -192,52 +201,31 @@ if __name__ == "__main__":
     ## dummy GENERATOR
     
     #t = train_fp[:4]   ;   v = valdt_fp[:4] 
-    #tl = train_lbl[:4] ; vl = valdt_labels[:4]
-    #train_generator = DataGen(t, tl, train_config )
+    #tl = train_labl[:4] ; vl = valdt_labl[:4]
+    #train_generator = DataGen(t, tl, train_config , 'train' )
     #valdt_generator = DataGen(v, vl, train_config , 'valdt' )
 
     ## real GERADOR
-    train_generator = DataGen(train_fp, train_labl, train_config)
-    valdt_generator = DataGen(valdt_fp, valdt_labl, train_config , 'valdt')
+    train_generator = DataGen(train_fp, train_labl, train_config, 'train')
+    valdt_generator = DataGen(valdt_fp, valdt_labl, train_config, 'valdt')
     
-    
-    ## TF.DATA FROM GENERATOR
-    '''def data_gen_wrapper(data_gen):
-        for i in range(len(data_gen)):
-            yield data_gen[i]
-        
-    output_types = (tf.float32, tf.float32)
-    output_shapes = (
-        tf.TensorShape((None , None , train_config["in_height"], train_config["in_width"], 3)),
-        tf.TensorShape((None,))
-    )
-    train_dataset = tf.data.Dataset.from_generator(
-        lambda: data_gen_wrapper(train_generator),
-        output_types=output_types,
-        output_shapes=output_shapes
-    )
-    valdt_dataset = tf.data.Dataset.from_generator(
-        lambda: data_gen_wrapper(valdt_generator),
-        output_types=output_types,
-        output_shapes=output_shapes
-    )'''
+
+    #for step in range(NUM_STEPS):
+    #    with tf.profiler.experimental.Trace('train', step_num=step, _r=1):
+    #        train_data = next(dataset)
+    #        train_step(train_data)
+
+    #raise Exception("o") 
     
     
     ''' MODEL '''
-    ## MULTI GPU STRATEGY
-    #strategy = tf.distribute.MirroredStrategy()
-    #print('\nSTATEGY\nNumber of devices: {}'.format(strategy.num_replicas_in_sync))
-    #with strategy.scope():
-    #    model,model_name = tfh5.form_model(train_config)
-    
-    ## SINGLE
     model,model_name = tfh5.form_model(train_config)
     
     ## CLBK's
     ckpt_clbk = tfh5.ckpt_clbk(model_name)
     early_stop_clbk = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
     tqdm_clbk = TqdmCallback(train_config["epochs"],len(train_fp)*2,train_config["batch_size"],verbose=1)
-    
+    #tnsrboard_clbk = tfh5.tnsrboard_clbk(model_name,10,60)
     
     ''' FIT '''
     history = model.fit(train_generator, 
@@ -250,8 +238,8 @@ if __name__ == "__main__":
                         validation_steps = len(valdt_fp),
                         
                         use_multiprocessing = True , 
-                        #workers = 8 #,
-                        callbacks=[ckpt_clbk , early_stop_clbk , tqdm_clbk ]
+                        workers = 16 ,
+                        callbacks=[ckpt_clbk , early_stop_clbk , tqdm_clbk] # , 
                     )
 
 

@@ -50,6 +50,13 @@ def limit_gpu_gb(i):
         [tf.config.LogicalDeviceConfiguration(memory_limit=31744)]
     )
 
+def check_gpu_conn():
+    device_name = tf.test.gpu_device_name()
+    if not device_name:
+        raise SystemError('GPU device not found')
+    print('\n\nFound GPU at: {}'.format(device_name))
+
+
 #--------------------------------------------------------#
 ## MODEL
 def all_operations(args):
@@ -166,9 +173,18 @@ def form_model(params):
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
     
     time_str = str(time.time()); 
-    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+str(params["frame_max"])
+    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+str(params["frame_step"])+'_'+str(params["frame_max"])
     print("\n\t",model_name)
     return model , model_name
+
+def multi_gpu_model(cfg):
+    ## MULTI GPU STRATEGY
+    strategy = tf.distribute.MirroredStrategy()
+    print('\nSTATEGY\nNumber of devices: {}'.format(strategy.num_replicas_in_sync))
+    with strategy.scope():
+        model,model_name = form_model(cfg)
+    return model,model_name
+
 
 #--------------------------------------------------------#
 ## CALLBACKS
@@ -176,18 +192,23 @@ def form_model(params):
 def ckpt_clbk(model_name):
     #https://keras.io/api/callbacks/model_checkpoint/
     p = os.path.join(globo.CKPT_PATH,model_name)
-    if not os.path.exists(p):
-        os.makedirs(p)
-    else:raise Exception(f"{p} eristes")
+    if not os.path.exists(p): os.makedirs(p)
+    else: raise Exception(f"{p} eristes")
     
-    return ModelCheckpoint( filepath=p+'/'+model_name+'_ckpt-{epoch:02d}-{loss:.2f}.h5' , \
+    return ModelCheckpoint( filepath=p+'/'+model_name+'_ckpt-{epoch:02d}.h5' , \
                             monitor='loss',\
                             save_weights_only=True,\
                             #save_best_only=True,\
                             mode='auto',\
                             save_freq='epoch',\
                             verbose = 1)
-        
+    
+def tnsrboard_clbk(model_name,batch_start,batch_end):        
+    logs = globo.LOGS_PATH + model_name
+    return tf.keras.callbacks.TensorBoard(  log_dir = logs,
+                                            histogram_freq = 1,
+                                            profile_batch = str(batch_start)+","+str(batch_end))
+
 
 #--------------------------------------------------------#
 ## MIL MODEL IDEA FORMULATION

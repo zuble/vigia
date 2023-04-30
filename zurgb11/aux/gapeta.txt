@@ -1,72 +1,45 @@
- def __getitem__(self, idx):
-
-        ## flipp flag
-        if self.train and self.augment: i = idx // 2 ; flipp = idx % 2 == 1
-        else: i = idx; flipp = False
+    ## real GERADOR
+    train_generator = DataGen(train_fp, train_labl, train_config, 'train')
+    valdt_generator = DataGen(valdt_fp, valdt_labl, train_config, 'valdt')
+    
+    
+    ## TF.DATA FROM GENERATOR
+    '''def data_gen_wrapper(data_gen):
+        for i in range(len(data_gen)):
+            yield data_gen[i]
         
-        
-        batch_frames , batch_labels = [] , [] 
-        
-        vpath = self.vpath_list[i]
-        label = self.label_list[i]
-        if not label:label_str=str('NORMAL')
-        else:label_str=str('ABNORMAL')
-        
-        
-        video = cv2.VideoCapture(vpath)
-        tframes = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-        
-         
-        ## if normal > frame_max picks random frame_max W
-        if label == 0 and tframes > self.frame_max :
-            vid_start_idx = random.randint(0, tframes - self.frame_max)
-            vid_end_idx = vid_start_idx + self.frame_max
-            video.set(cv2.CAP_PROP_POS_FRAMES, vid_start_idx)
-        ## else ingests full video
-        else: vid_start_idx = 0 ; vid_end_idx = tframes
-        
-        
-        frames = []
-        curr_frame = 0
-        success, frame = video.read()
-        for j in range(vid_end_idx - vid_start_idx):
-            
-            if not success or curr_frame > vid_end_idx: 
-                #print(f"Frame read failed at idx: {j}, curr_frame: {curr_frame}, vid_end_idx: {vid_end_idx}")
-                break
-            
-            frame = cv2.resize(frame, (self.in_width, self.in_height))
-            frame_arr = np.array(frame)/255.0
-            frames.append(frame_arr)
-            
-            ## jumps the next frame wo decoding
-            success, frame, curr_frame = self.skip_frames(video)
-            #print(f"Frame read successful at idx: {j}, curr_frame: {curr_frame}, success: {success}")
-            
-        
-        # After reading frames
-        print(f"Total frames read: {len(frames)}")        
-        frames_arr = np.array(frames)
-        # After converting frames to a NumPy array
-        print(f"Frames array shape: {frames_arr.shape}")
-        
-        if flipp:  
-            # Before flipping frames_arr
-            print(f"Frames before flipping: {frames_arr}")
-
-            frames_arr = np.flip(frames_arr, axis=2)
-
-            # After flipping frames_arr
-            print(f"Frames after flipping: {frames_arr}")
-            
-            #print(frames[44])
-            self.savefff(frame[43] , frame_arr[43])
-            
-        
-        batch_frames.append(frames_arr)
-        X = np.array(batch_frames).astype(np.float32)
-        
-        batch_labels.append(label)
-        y = np.array(batch_labels).astype(np.float32)
-  
-        return X , y
+    output_types = (tf.float32, tf.float32)
+    output_shapes = (
+        tf.TensorShape((None , None , train_config["in_height"], train_config["in_width"], 3)),
+        tf.TensorShape((None,))
+    )
+    train_dataset = tf.data.Dataset.from_generator(
+        lambda: data_gen_wrapper(train_generator),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )
+    valdt_dataset = tf.data.Dataset.from_generator(
+        lambda: data_gen_wrapper(valdt_generator),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )'''
+    
+    
+    ''' MODEL '''
+    ## SINGLE
+    model,model_name = tfh5.form_model(train_config)
+    
+    
+    ''' FIT '''
+    history = model.fit(train_generator, 
+                        epochs = train_config["epochs"] ,
+                        steps_per_epoch = len(train_fp) * 2,
+                        
+                        verbose=2,
+                        
+                        validation_data = valdt_generator ,
+                        validation_steps = len(valdt_fp),
+                        
+                        use_multiprocessing = True , 
+                        #workers = 8 ,
+                    )

@@ -3,6 +3,7 @@ import os , logging , time
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+from keras import layers
 from tensorflow.keras.callbacks import ModelCheckpoint
 
 from utils import globo
@@ -67,14 +68,11 @@ def gelu(x):
 #get_custom_objects().update({'gelu': Activation(gelu)})
 
 
-def form_model(params):
-    print("\nFORM_MODEL\n")
-    
+def form_model_wav(params):
+    print("\nFORM_MODEL @",print(params['full_or_max']),"\n")
+   
     ''' waves coming '''
-    sinet_aas_len = 8
-    aas_input = tf.keras.layers.Input(shape=(None, sinet_aas_len), name='input_layer') #(TIMESTEPS,AAS)
-
-
+   
     #https://www.tensorflow.org/api_docs/python/tf/keras/activations
     #https://www.tensorflow.org/api_docs/python/tf/nn/leaky_relu
     if params["ativa"]=='leakyrelu': ativa = keras.layers.LeakyReLU()
@@ -82,16 +80,28 @@ def form_model(params):
     elif params["ativa"]=='relu': ativa = 'relu'
     else: raise Exception("no ativa named assim")
 
-    
-    gloabl_aas = keras.layers.GlobalMaxPooling1D()(aas_input) 
-    
-    hidden_dense_1 = keras.layers.Dense(128, activation=ativa)(gloabl_aas)
-    sigmoid = keras.layers.Dense(1, activation='sigmoid')(hidden_dense_1)    
-    
-    model = keras.Model(inputs=[aas_input], 
-                        outputs=[sigmoid])
 
-
+    ## (TIMESTEPS,AAS)
+    if params["full_or_max"] == 'full':
+        aas_input = tf.keras.layers.Input(shape=(None, params["sinet_aas_len"]), name='input_layer')
+        
+        gloabl_aas = keras.layers.GlobalMaxPooling1D()(aas_input) 
+        
+        hidden_dense_1 = keras.layers.Dense(128, activation=ativa)(gloabl_aas)
+        sigmoid = keras.layers.Dense(1, activation='sigmoid')(hidden_dense_1)    
+        
+        model = keras.Model(inputs=[aas_input], 
+                            outputs=[sigmoid])
+    
+    ## or np.max before
+    elif params['full_or_max'] == 'max':
+        model = tf.keras.Sequential([
+            layers.Input(shape=(None,params["sinet_aas_len"]), name='input_layer'),
+            layers.Dense(128, activation=ativa, name='hidden_layer'),
+            layers.Dense(1, activation='sigmoid', name='output_layer')
+        ])
+    
+    
     #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
     if params["optima"]=='sgd':optima = keras.optimizers.SGD(learning_rate = 0.0002)
     elif params["optima"]=='adam':optima = keras.optimizers.Adam(learning_rate = 0.0002)
@@ -112,19 +122,16 @@ def form_model(params):
 
     model.compile(optimizer=optima, 
                     loss = 'binary_crossentropy', 
-                    #loss= {'output_layer':'binary_crossentropy'}, 
-                    #loss_weights = class_weights,
                     metrics = METRICS
-                    #metrics={'output_layer':METRICS}
                 )
+    model.summary()    
     
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
-    
+
     time_str = str(time.time()); 
     model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+str(params["frame_max"])
     print("\n\t",model_name)
     return model , model_name
-
 
 #--------------------------------------------------------#
 ## CALLBACKS

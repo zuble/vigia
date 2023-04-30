@@ -1,5 +1,5 @@
-zhen++/parameters_saved/
-dog-cat/dogs-vs-cats/
+#zhen++/parameters_saved/
+#dog-cat/dogs-vs-cats/
 
 */utils/__pycache__/
 */model/ckpt/
@@ -8,6 +8,10 @@ dog-cat/dogs-vs-cats/
 
 */.neptune/
 
+.aux/
+.env/
 .contentor/
 .vscode/
+dog-cat/
 essentia/
+zhen++/

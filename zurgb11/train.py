@@ -1,4 +1,4 @@
-import os, random, logging , cv2 , csv
+import os, random, logging , cv2 , csv , time
 
 #import matplotlib.pyplot as plt
 import numpy as np
@@ -24,13 +24,15 @@ tfh5.check_gpu_conn()
 
 
 ''' TRAIN & VALDT '''
+## TO DO 
+## INHERIT TRAIN AND VALDT FUNCTION LOAD FROM NPY @ ZUWAV1
 #train_fn, train_labels, train_tot_frames, valdt_fn, valdt_labels , valdt_tot_frames = xdv.train_valdt_files(tframes=True)
 train_fp, train_labl, valdt_fp, valdt_labl = xdv.train_valdt_files()
 
 
 ''' CONFIGS '''
 train_config = {
-    "frame_step":2, #24 fps -> 12
+    "frame_step":2, #fstep=2 : 24 fps -> 12 , =4 : -> 
     
     "in_height":120,
     "in_width":160,
@@ -45,7 +47,7 @@ train_config = {
     "frame_max" : 8000,
     "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
     
-    "epochs" : 30
+    "epochs" : 10
 }
 
 
@@ -85,6 +87,7 @@ class DataGen(tf.keras.utils.Sequence):
         self.debug = debug
         self.printt = printt
  
+    
     def skip_frames(self,cap,fs):
         start_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
         #print("skip_start",start_frame)
@@ -115,37 +118,55 @@ class DataGen(tf.keras.utils.Sequence):
     def __getitem__(self, idx):
         ## idx 0 - flipp False - vpath[0] 
         ## idx 1 - flipp True - vpath[0] 
+        ## idx 3 - flipp False - vpath[1] ..
         
         ## flipp flag
-        if self.train and self.augment: i = idx // 2 ; flipp = idx % 2 == 1
+        if self.train and self.augment: 
+            i = idx // 2 ; flipp = idx % 2 == 1
         else: i = idx; flipp = False
         
-        batch_frames , batch_labels = [] , [] 
         
         vpath = self.vpath_list[i]
         label = self.label_list[i]
         if not label:label_str=str('NORMAL')
         else:label_str=str('ABNORMAL')
         
+
+        ## tries to open video , if not attempts 3 times w/ delay
+        vc_attmp = 0 ; max_attmp = 3 ; delay = 4 ; video_opened = False
+        while vc_attmp < max_attmp and not video_opened:
+            video = cv2.VideoCapture(vpath)
+            video_opened = video.isOpened()
+            if not video_opened:
+                vc_attmp += 1
+                print(f"\nAttempt {vc_attmp}: Failed to open video: {vpath}")
+                time.sleep(delay)
+                continue
+        ## after failed 3 times, return zeros 
+        if not video_opened:
+            print(f"\nSkipping video: {vpath}")
+            return  np.expand_dims(np.zeros((self.maxpool3_min_tframes, self.in_height, self.in_width, 3), dtype=np.float32) , 0) ,\
+                    np.expand_dims(np.array(label, dtype=np.float32) , 0)
         
-        video = cv2.VideoCapture(vpath)
-        if video.isOpened(): pass
-        else: print(f"Failed to open video: {vpath}")
+        #video = cv2.VideoCapture(vpath)
+        #if video.isOpened(): pass
+        #else: print(f"Failed to open video: {vpath}")
         
+        
+        ## Check if the video has enough frames so shape isnt -1
         tframes = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-        
-         
-        # Check if the video has enough frames so shape isnt -1
         if tframes >= self.maxpool3_min_tframes:
             
             if label == 0 and tframes > self.frame_max:
                 vid_start_idx = random.randint(0, tframes - self.frame_max)
                 vid_end_idx = vid_start_idx + self.frame_max
                 video.set(cv2.CAP_PROP_POS_FRAMES, vid_start_idx)
-            else: vid_start_idx = 0; vid_end_idx = tframes
+            
+            else: vid_start_idx = 0 ; vid_end_idx = tframes
+            
             frame_step = self.frame_step
             
-        else: vid_start_idx = 0; vid_end_idx = tframes; frame_step = 1
+        else: vid_start_idx = 0 ; vid_end_idx = tframes ; frame_step = 1
         
         
         frames = []
@@ -160,22 +181,30 @@ class DataGen(tf.keras.utils.Sequence):
             frame = cv2.resize(frame, (self.in_width, self.in_height))
             frame_arr = np.array(frame)/255.0
             frames.append(frame_arr)
+            
             ## jumps the next frame wo decoding
             success, frame, curr_frame = self.skip_frames(video,frame_step)
             if self.debug: print(f"Frame read successful at idx: {j}, curr_frame: {curr_frame}, success: {success}")
             
-             
+            
         frames_arr = np.array(frames)
         
         #self.showfr(frames_arr)
         if flipp:frames_arr = np.flip(frames_arr, axis=2)
         #self.showfr(frames_arr)
         
-        batch_frames.append(frames_arr)
-        batch_labels.append(label)
         
-        X = np.array(batch_frames).astype(np.float32)
-        y = np.array(batch_labels).astype(np.float32)
+        #batch_frames , batch_labels = [] , [] 
+        
+        #batch_frames.append(frames_arr)
+        #batch_labels.append(label)
+        
+        #X = np.array(batch_frames).astype(np.float32)
+        #y = np.array(batch_labels).astype(np.float32) 
+        
+        
+        X = np.expand_dims(np.array(frames_arr).astype(np.float32), 0)
+        y = np.expand_dims(np.array(label).astype(np.float32), 0)
          
          
         ## prints
@@ -199,9 +228,9 @@ if __name__ == "__main__":
     ''' DATA '''
     
     ## dummy GENERATOR
-    
-    #t = train_fp[:4]   ;   v = valdt_fp[:4] 
-    #tl = train_labl[:4] ; vl = valdt_labl[:4]
+    #dmy = 4
+    #t = train_fp[:dmy]   ;   v = valdt_fp[:dmy] 
+    #tl = train_labl[:dmy] ; vl = valdt_labl[:dmy]
     #train_generator = DataGen(t, tl, train_config , 'train' )
     #valdt_generator = DataGen(v, vl, train_config , 'valdt' )
 
@@ -221,11 +250,15 @@ if __name__ == "__main__":
     ''' MODEL '''
     model,model_name = tfh5.form_model(train_config)
     
+    model.load_weights('/raid/DATASETS/.zuble/vigia/zurgb11/model/ckpt/1682641424.8587277_relu_sgd_0_2_8000/1682641424.8587277_relu_sgd_0_2_8000_ckpt-20.h5')
+    
+    
     ## CLBK's
     ckpt_clbk = tfh5.ckpt_clbk(model_name)
-    early_stop_clbk = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
+    #early_stop_clbk = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
+    ##tnsrboard_clbk = tfh5.tnsrboard_clbk(model_name,10,60)
     tqdm_clbk = TqdmCallback(train_config["epochs"],len(train_fp)*2,train_config["batch_size"],verbose=1)
-    #tnsrboard_clbk = tfh5.tnsrboard_clbk(model_name,10,60)
+    clbks = [ ckpt_clbk , tqdm_clbk ]
     
     ''' FIT '''
     history = model.fit(train_generator, 
@@ -239,7 +272,7 @@ if __name__ == "__main__":
                         
                         use_multiprocessing = True , 
                         workers = 16 ,
-                        callbacks=[ckpt_clbk , early_stop_clbk , tqdm_clbk] # , 
+                        callbacks = clbks
                     )
 
 

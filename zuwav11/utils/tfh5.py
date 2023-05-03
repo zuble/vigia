@@ -129,7 +129,7 @@ def form_model_wav(params):
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
 
     time_str = str(time.time()); 
-    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+str(params["frame_max"])
+    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["full_or_max"])+'_'+str(params["frame_max"])
     print("\n\t",model_name)
     return model , model_name
 

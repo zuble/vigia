@@ -1,5 +1,4 @@
-import os, time, logging
-from concurrent.futures import ThreadPoolExecutor
+import os, time, random, logging , datetime , cv2 , csv , subprocess , json
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,7 +12,7 @@ from utils import globo , xdv , tfh5 , sinet
 
 
 ''' GPU CONFIGURATION '''
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 tfh5.set_tf_loglevel(logging.ERROR)
 tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
 #tfh5.set_memory_growth()
@@ -22,8 +21,7 @@ tf.debugging.set_log_device_placement(False) #Enabling device placement logging 
 
 
 ''' TRAIN & VALDT '''
-#train_fn, train_labels, train_tot_frames, valdt_fn, valdt_labels , valdt_tot_frames = xdv.train_valdt_files(tframes=True)
-train_fp, train_labl, valdt_fp, valdt_labl = xdv.train_valdt_files()
+TV1_DICT=xdv.train_valdt_test_from_xdvtest_bg_from_npy()
 
 
 ''' CONFIGS '''
@@ -66,28 +64,35 @@ CFG_WAV= {
     "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with CFG_WAV stated
     
     "epochs" : 1,
-    "batch_size" : 32
+    "batch_size" : 1
     
 }
 
 
-''' Data Gerador '''
-class DataGen(tf.keras.utils.Sequence):
-    def __init__(self,vpath_list, label_list , mode = 'train' , debug = False):
+''' Data Gerador w/o batch on xdv_test set'''
+class DataGenFL0(tf.keras.utils.Sequence):
+    def __init__(self, mode = 'train' , dummy = 0 , debug = False):
         
+        #self.data = np.load(f"data_{typee}.npz", allow_pickle=True)["data"]
+            
         self.mode = mode
-        if mode == 'valdt' : self.valdt = True ;  self.train = False
-        else: self.train = True ; self.valdt = False
+        if mode == 'valdt' : 
+            self.valdt = True ;  self.train = False
+            self.data = TV1_DICT['valdt']
+            self.len_data = len(self.data)
+        elif mode == 'train': 
+            self.train = True ; self.valdt = False
+            self.data = TV1_DICT['train']
+            self.len_data = len(self.data)
+        if dummy:
+            self.data = self.data[:dummy]
+            self.len_data = len(self.data)
+            
         print("\n\nDataGen",mode,self.train,self.valdt)
+        print("vpath , label",self.len_vpath_list,(len(self.label_list)))
         
-        
-        self.vpath_list = vpath_list
-        self.len_vpath_list = len(self.vpath_list)
-        self.label_list = label_list
-        print("vpath , label",self.len_vpath_list,(len(label_list)))
-        
-        
-        self.batch_size = CFG_WAV["batch_size"]
+    
+        self.batch_size = 1
         self.frame_max = CFG_WAV["frame_max"]
         self.shuffle = CFG_WAV["shuffle"]
         
@@ -97,64 +102,38 @@ class DataGen(tf.keras.utils.Sequence):
 
  
     def __len__(self):
-        if self.debug: print("\n\n__len__",self.mode,"= n batchs = ",int(np.ceil(self.len_vpath_list / float(self.batch_size))), " w/ ",self.batch_size," vid_frames each")
-        return int(np.ceil(self.len_vpath_list / float(self.batch_size)))
+        if self.debug: print("\n\n__len__",self.mode,"= n batchs = ",int(np.ceil(self.len_data / float(self.batch_size))), " w/ ",self.batch_size," vid_frames each")
+        return int(np.ceil(self.len_data / float(self.batch_size)))
         
-    
-    def call_get_sigmoid(self, i, p_es, vpath_list, debug):
-        vpath = vpath_list[i]
-        print("\t call for ",i , os.path.basename(vpath))
-        p_es[i , :] = self.sinet.get_sigmoid(vpath, debug=debug)
-
-    
+        
     def __getitem__(self, idx):
+
+        sample = self.data[idx]
+        vpath = sample['vpath']
+        frame_interval = sample['frame_interval']
+        p_es_array = sample['p_es_array']
+        label = sample['label']
+        print(vpath,"\n",frame_interval,np.shape(p_es_array),label)
+        '''
+        data_dicts[typee].append({
+                'vpath': vpath,
+                'frame_interval': frame_intervals[k],
+                'p_es_array': p_es_array[k],
+                'label': frame_intervals[k][2]
+        })
+        '''
+        
+        
+        X = np.expand_dims(np.array(p_es_array).astype(np.float32),0)
+        y = np.expand_dims(np.array(label).astype(np.float32),0)
          
-        start_idx = idx * self.batch_size
-        end_idx = min((idx + 1) * self.batch_size, self.len_vpath_list)
-        current_batch_size = end_idx - start_idx
+         
+        ## prints
+        #if self.debug:print(f"\n********** {self.mode}_{idx} **** {label_str} ***************\n")
+        #print( f"\n\n\n£££ {self.mode}_{self.sinet.model_config['full_or_max']}_{idx} * {label_str} @ {os.path.basename(vpath)}\n"
+        #            f"    X {X.shape} @{X.dtype} , y {y} , {y.shape} @{y.dtype}\n\n")
         
-        if self.debug: 
-            print(f"\n\n\n£££ {self.mode}_{self.sinet.model_config['full_or_max']}_batch{idx}" )
-            print("\nIDX [",start_idx,",",end_idx,"] @ batch_size",current_batch_size)
-        
-        
-        # Preallocate p_es array
-        p_es = np.empty((current_batch_size , CFG_SINET["labels_total"]), dtype=np.float32)
-        print("\n\tp_es @ BEFORE",p_es.shape)
-        
-        # Calculate p_es in parallel
-        with ThreadPoolExecutor() as executor:
-            executor.map(   self.call_get_sigmoid, 
-                            range(current_batch_size), 
-                            [p_es]*current_batch_size, 
-                            [self.vpath_list[start_idx:end_idx]]*current_batch_size, 
-                            [False]*current_batch_size)
-        
-        print("\n\tp_es @ AFTER",p_es.shape)
-        
-        
-        # Preallocate X_batch and y_batch arrays
-        X_batch = np.empty((current_batch_size, 1, p_es.shape[1]), dtype=np.float32)
-        y_batch = np.empty((current_batch_size, 1), dtype=np.float32)
-        print(  f"\n********* BEFORE\nX {X_batch.shape} @{X_batch.dtype} , y {y_batch} , {y_batch.shape} @{y_batch.dtype}\n\n")
-        
-        # Iterate over the samples in the batch
-        for i in range(current_batch_size):
-            
-            label = self.label_list[start_idx + i]
-            if not label:label_str=str('NORMAL')
-            else:label_str=str('ABNORMAL')
-            
-            ## prints
-            #if self.debug:
-            print(  f"\n********** {self.mode}_{start_idx + i} **** {label_str} ***************\n"\
-                    f"\n p_es{start_idx + i} {p_es[i].shape} @{p_es[i].dtype} , y {label}")
-            
-            X_batch[i] = np.expand_dims(np.array(p_es[i]).astype(np.float32), 0)
-            y_batch[i] = np.expand_dims(np.array(label).astype(np.float32), 0)
-      
-        print(  f"\n********* AFTER\nX {X_batch.shape} @{X_batch.dtype} , y {y_batch} , {y_batch.shape} @{y_batch.dtype}\n\n")
-        return X_batch , y_batch
+        return X , y
 
    
           
@@ -163,18 +142,8 @@ if __name__ == "__main__":
     ''' DATA '''
     
     ## dummy GENERATOR
-    '''
-    dmy = 16
-    t = train_fp[:dmy]   ;   v = valdt_fp[:dmy] 
-    tl = train_labl[:dmy] ; vl = valdt_labl[:dmy]
-    train_generator = DataGen(t, tl, 'train' , debug  = True)
-    valdt_generator = DataGen(v, vl, 'valdt' )
-    '''
-
-    ## real GERADOR
-    train_generator = DataGen(train_fp, train_labl, CFG_WAV, 'train')
-    valdt_generator = DataGen(valdt_fp, valdt_labl, CFG_WAV, 'valdt')
-    
+    train_generator = DataGenOrig('train' , 4 , True)
+    valdt_generator = DataGenOrig('valdt' , 4 , True)
     
     ## TF.DATA FROM GENERATOR
     '''
@@ -213,15 +182,15 @@ if __name__ == "__main__":
     ''' FIT '''
     history = model.fit(train_generator, 
                         epochs = CFG_WAV["epochs"] ,
-                        #steps_per_epoch = len(train_generator),
+                        steps_per_epoch = len(train_generator),
                         
                         verbose=2,
                         
                         #validation_data = valdt_generator,
                         #validation_steps = len(valdt_fp),
                         
-                        use_multiprocessing = True , 
-                        workers = 8 #,
+                        #use_multiprocessing = True , 
+                        #workers = 8 #,
                         #callbacks=[ckpt_clbk , early_stop_clbk , tqdm_clbk ]
                     )
 

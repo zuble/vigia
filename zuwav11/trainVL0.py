@@ -12,7 +12,7 @@ from utils import globo , xdv , tfh5 , sinet
 
 
 ''' GPU CONFIGURATION '''
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 tfh5.set_tf_loglevel(logging.ERROR)
 tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
 #tfh5.set_memory_growth()
@@ -22,8 +22,8 @@ tf.debugging.set_log_device_placement(False) #Enabling device placement logging 
 
 ''' TRAIN & VALDT '''
 #train_fn, train_labels, train_tot_frames, valdt_fn, valdt_labels , valdt_tot_frames = xdv.train_valdt_files(tframes=True)
-train_fp, train_labl, valdt_fp, valdt_labl = xdv.train_valdt_files()
-
+#train_fp, train_labl, valdt_fp, valdt_labl = xdv.train_valdt_files()
+TV0_DICT=xdv.train_valdt_from_npy()
 
 ''' CONFIGS '''
 CFG_SINET = {
@@ -70,23 +70,32 @@ CFG_WAV= {
 }
 
 
-''' Data Gerador '''
-class DataGen(tf.keras.utils.Sequence):
-    def __init__(self,vpath_list, label_list , mode = 'train' , debug = False):
-        
+''' Data Gerador w/o batch on xdv_train set'''
+class DataGenOrig(tf.keras.utils.Sequence):
+    def __init__(self, mode = 'train' , dummy = 0 , debug = False):
+
         self.mode = mode
-        if mode == 'valdt' : self.valdt = True ;  self.train = False
-        else: self.train = True ; self.valdt = False
+        if mode == 'valdt' : 
+            self.valdt = True ;  self.train = False
+            self.vpath_list = TV0_DICT['valdt_fn']
+            self.len_vpath_list = len(self.vpath_list)
+            self.label_list = TV0_DICT['valdt_labels']
+            self.tot_frames_list = TV0_DICT['valdt_tot_frames']
+        elif mode == 'train': 
+            self.train = True ; self.valdt = False
+            self.vpath_list = TV0_DICT['train_fn']
+            self.len_vpath_list = len(self.vpath_list)
+            self.label_list = TV0_DICT['train_labels']
+            self.tot_frames_list = TV0_DICT['train_tot_frames']
+        if dummy:
+            self.vpath_list = self.vpath_list[:dummy]
+            self.len_vpath_list = len(self.vpath_list)
+            self.label_list = self.label_list[:dummy]
         print("\n\nDataGen",mode,self.train,self.valdt)
+        print("vpath , label",self.len_vpath_list,(len(self.label_list)))
         
         
-        self.vpath_list = vpath_list
-        self.len_vpath_list = len(self.vpath_list)
-        self.label_list = label_list
-        print("vpath , label",self.len_vpath_list,(len(label_list)))
-        
-        
-        self.batch_size = CFG_WAV["batch_size"]
+        self.batch_size = 1
         self.frame_max = CFG_WAV["frame_max"]
         self.shuffle = CFG_WAV["shuffle"]
         
@@ -102,15 +111,25 @@ class DataGen(tf.keras.utils.Sequence):
         
     def __getitem__(self, idx):
 
-        batch_aas , batch_labels = [] , [] 
-        
         vpath = self.vpath_list[idx]
         label = self.label_list[idx]
+        tot_frame = self.tot_frames_list[idx]
         if not label:label_str=str('NORMAL')
         else:label_str=str('ABNORMAL')
         
-        p_es = self.sinet.get_sigmoid(vpath,debug=True)
+        ## determine the frame window for each video in batch
+        print("\n###frame windowing")
+        if label == 0 and tot_frame > self.frame_max:  # Normal video w/ > frame_max frames
+            start_frame = np.random.randint(0, tot_frame - self.frame_max )
+            end_frame = start_frame + self.frame_max
+        else:  # Abnormal/Normal video w/ < frame_max frames
+            start_frame = 0
+            end_frame = -1  # Use -1 to indicate no restriction on end frame
+            
+        print("\t",idx,os.path.basename(vpath),"label",label,"tott_frame",tot_frame,start_frame,end_frame)
         
+        
+        p_es = self.sinet.get_sigmoid(vpath,start_frame,end_frame,debug=True)
         
         X = np.expand_dims(np.array(p_es).astype(np.float32),0)
         y = np.expand_dims(np.array(label).astype(np.float32),0)
@@ -118,8 +137,7 @@ class DataGen(tf.keras.utils.Sequence):
          
         ## prints
         if self.debug:print(f"\n********** {self.mode}_{idx} **** {label_str} ***************\n")
-
-        else:print( f"\n\n\n£££ {self.mode}_{self.sinet.model_config['full_or_max']}_{idx} * {label_str} @ {os.path.basename(vpath)}\n"
+        print( f"\n\n\n£££ {self.mode}_{self.sinet.model_config['full_or_max']}_{idx} * {label_str} @ {os.path.basename(vpath)}\n"
                     f"    X {X.shape} @{X.dtype} , y {y} , {y.shape} @{y.dtype}\n\n")
         
         return X , y
@@ -131,16 +149,8 @@ if __name__ == "__main__":
     ''' DATA '''
     
     ## dummy GENERATOR
-    dmy = 16
-    t = train_fp[:dmy]   ;   v = valdt_fp[:dmy] 
-    tl = train_labl[:dmy] ; vl = valdt_labl[:dmy]
-    train_generator = DataGen(t, tl, 'train' )
-    valdt_generator = DataGen(v, vl, 'valdt' )
-
-    ## real GERADOR
-    #train_generator = DataGen(train_fp, train_labl, CFG_WAV, 'train')
-    #valdt_generator = DataGen(valdt_fp, valdt_labl, CFG_WAV, 'valdt')
-    
+    train_generator = DataGenOrig('train' , 4 , True)
+    valdt_generator = DataGenOrig('valdt' , 4 , True)
     
     ## TF.DATA FROM GENERATOR
     '''

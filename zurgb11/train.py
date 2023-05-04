@@ -31,7 +31,7 @@ train_fp, train_labl, valdt_fp, valdt_labl = xdv.train_valdt_files()
 
 
 ''' CONFIGS '''
-train_config = {
+CFG_RGB = {
     "frame_step":2, #fstep=2 : 24 fps -> 12 , =4 : -> 
     
     "in_height":120,
@@ -44,40 +44,52 @@ train_config = {
     "ativa" : 'relu',
     "optima" : 'sgd',
     "batch_type" : 0,   # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
-    "frame_max" : 8000,
+    "frame_max" : 4000,
     "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with config stated
     
-    "epochs" : 10
+    "epochs" : 30
 }
 
 
 class DataGen(tf.keras.utils.Sequence):
-    def __init__(self, vpath_list, label_list, config , mode , debug = False , printt = True):
+    def __init__(self, mode , dummy = 0 , debug = False , printt = True):
         
         self.mode = mode
-        if mode == 'valdt'  : self.valdt = True ; self.train = False
-        elif mode == 'train': self.train = True ; self.valdt = False
+        if mode == 'valdt'  : 
+            self.valdt = True ; self.train = False
+            
+            self.vpath_list = valdt_fp
+            self.len_vpath_list = len(self.vpath_list)
+            self.label_list = valdt_labl
+            
+        elif mode == 'train': 
+            self.train = True ; self.valdt = False
+            
+            self.vpath_list = train_fp
+            self.len_vpath_list = len(self.vpath_list)
+            self.label_list = train_labl
+            
         else: raise Exception("mode can be 'train' or 'valdt' ")
         print("\n\nDataGen",mode,self.train,self.valdt)
         
+        if dummy:
+            self.vpath_list = self.vpath_list[:dummy]
+            self.len_vpath_list = len(self.vpath_list)
+            self.label_list = self.label_list[:dummy]
+
+        print("vpath , label",self.len_vpath_list,(len(self.label_list)))
         
-        self.vpath_list = vpath_list
-        self.len_vpath_list = len(self.vpath_list)
-        self.label_list = label_list
-        print("vpath , label",self.len_vpath_list,(len(label_list)))
-        
-        
-        self.frame_step = config["frame_step"]
+        self.frame_step = CFG_RGB["frame_step"]
         self.maxpool3_min_tframes = 21 * self.frame_step
         
-        self.batch_size = config["batch_size"]
-        self.frame_max = config["frame_max"]
+        self.batch_size = CFG_RGB["batch_size"]
+        self.frame_max = CFG_RGB["frame_max"]
         
-        self.in_height = config["in_height"]
-        self.in_width = config["in_width"]
+        self.in_height = CFG_RGB["in_height"]
+        self.in_width = CFG_RGB["in_width"]
         
-        self.augment = config["augment"]
-        self.shuffle = config["shuffle"]
+        self.augment = CFG_RGB["augment"]
+        self.shuffle = CFG_RGB["shuffle"]
         
         
         #self.indices = np.arange(self.len_vpath_list)
@@ -148,11 +160,7 @@ class DataGen(tf.keras.utils.Sequence):
             return  np.expand_dims(np.zeros((self.maxpool3_min_tframes, self.in_height, self.in_width, 3), dtype=np.float32) , 0) ,\
                     np.expand_dims(np.array(label, dtype=np.float32) , 0)
         
-        #video = cv2.VideoCapture(vpath)
-        #if video.isOpened(): pass
-        #else: print(f"Failed to open video: {vpath}")
-        
-        
+       
         ## Check if the video has enough frames so shape isnt -1
         tframes = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
         if tframes >= self.maxpool3_min_tframes:
@@ -225,50 +233,41 @@ class DataGen(tf.keras.utils.Sequence):
           
 if __name__ == "__main__":
     
-    ''' DATA '''
+    ''' DATA GERADORES '''
     
-    ## dummy GENERATOR
-    #dmy = 4
-    #t = train_fp[:dmy]   ;   v = valdt_fp[:dmy] 
-    #tl = train_labl[:dmy] ; vl = valdt_labl[:dmy]
-    #train_generator = DataGen(t, tl, train_config , 'train' )
-    #valdt_generator = DataGen(v, vl, train_config , 'valdt' )
+    ## dummy 
+    #train_generator = DataGen( 'train' , 8)
+    #valdt_generator = DataGen( 'valdt' , 8)
 
-    ## real GERADOR
-    train_generator = DataGen(train_fp, train_labl, train_config, 'train')
-    valdt_generator = DataGen(valdt_fp, valdt_labl, train_config, 'valdt')
+    ## real 
+    train_generator = DataGen( 'train' )
+    valdt_generator = DataGen( 'valdt' )
     
 
-    #for step in range(NUM_STEPS):
-    #    with tf.profiler.experimental.Trace('train', step_num=step, _r=1):
-    #        train_data = next(dataset)
-    #        train_step(train_data)
-
-    #raise Exception("o") 
-    
     
     ''' MODEL '''
-    model,model_name = tfh5.form_model(train_config)
+    model,model_name = tfh5.form_model(CFG_RGB)
     
-    model.load_weights('/raid/DATASETS/.zuble/vigia/zurgb11/model/ckpt/1682641424.8587277_relu_sgd_0_2_8000/1682641424.8587277_relu_sgd_0_2_8000_ckpt-20.h5')
+    #model = tfh5.load_h5(model,globo.WEIGHTS_PATH,CFG_RGB)
+    #model.load_weights('/raid/DATASETS/.zuble/vigia/zurgb11/model/ckpt/1682641424.8587277_relu_sgd_0_2_8000/1682641424.8587277_relu_sgd_0_2_8000_ckpt-20.h5')
     
     
     ## CLBK's
     ckpt_clbk = tfh5.ckpt_clbk(model_name)
-    #early_stop_clbk = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=4)
+    early_stop_clbk = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
     ##tnsrboard_clbk = tfh5.tnsrboard_clbk(model_name,10,60)
-    tqdm_clbk = TqdmCallback(train_config["epochs"],len(train_fp)*2,train_config["batch_size"],verbose=1)
-    clbks = [ ckpt_clbk , tqdm_clbk ]
+    tqdm_clbk = TqdmCallback(CFG_RGB["epochs"],len(train_fp)*2,CFG_RGB["batch_size"],verbose=1)
+    clbks = [ ckpt_clbk , tqdm_clbk , early_stop_clbk]
     
     ''' FIT '''
     history = model.fit(train_generator, 
-                        epochs = train_config["epochs"] ,
-                        steps_per_epoch = len(train_fp) * 2,
+                        epochs = CFG_RGB["epochs"] ,
+                        #steps_per_epoch = len(train_fp) * 2,
                         
                         verbose=2,
                         
                         validation_data = valdt_generator ,
-                        validation_steps = len(valdt_fp),
+                        #validation_steps = len(valdt_fp),
                         
                         use_multiprocessing = True , 
                         workers = 16 ,
@@ -284,4 +283,28 @@ if __name__ == "__main__":
     
     hist_csv_file = globo.HIST_PATH + model_name + '_history.csv'
     with open(hist_csv_file, 'w', newline='') as file:writer = csv.writer(file);writer.writerow(history.history.keys());writer.writerows(zip(*history.history.values()))
+
+
+
+    ''' 
+    ## TF.DATA FROM GENERATOR
+    def data_gen_wrapper(data_gen):
+        for i in range(len(data_gen)):
+            yield data_gen[i]
         
+    output_types = (tf.float32, tf.float32)
+    output_shapes = (
+        tf.TensorShape((None , None , train_config["in_height"], train_config["in_width"], 3)),
+        tf.TensorShape((None,))
+    )
+    train_dataset = tf.data.Dataset.from_generator(
+        lambda: data_gen_wrapper(train_generator),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )
+    valdt_dataset = tf.data.Dataset.from_generator(
+        lambda: data_gen_wrapper(valdt_generator),
+        output_types=output_types,
+        output_shapes=output_shapes
+    )
+    '''

@@ -59,6 +59,12 @@ def check_gpu_conn():
 
 #--------------------------------------------------------#
 ## MODEL
+def name_it(cfg,string_it=False):
+    aa = cfg["ativa"]+'_'+cfg["optima"]+'_'+str(cfg["batch_type"])+'_'+str(cfg["frame_step"])+'_'+str(cfg["frame_max"])
+    if string_it: return aa.split("_")
+    return aa 
+
+
 def all_operations(args):
     x = args[0]
     #tf.print(x.shape)
@@ -172,10 +178,10 @@ def form_model(params):
     
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
     
-    time_str = str(time.time()); 
-    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+str(params["frame_step"])+'_'+str(params["frame_max"])
+    model_name = str(time.time()) + '_' + name_it(params)
     print("\n\t",model_name)
     return model , model_name
+
 
 def multi_gpu_model(cfg):
     ## MULTI GPU STRATEGY
@@ -185,6 +191,58 @@ def multi_gpu_model(cfg):
         model,model_name = form_model(cfg)
     return model,model_name
 
+
+#---------#
+## h5 files
+
+def find_h5(path,find_string):
+    '''
+        if find_string=('') it returns all .h5 files in path descarding subdiretories
+        if find_string=('str1','str2',..) it returns .h5 files with all str in name 
+    '''
+    h5_fn = [];h5_pth = []
+
+    for root, dirs, files in os.walk(path):
+        if len(find_string) == 0:
+            for fil in files:
+                fname, fext = os.path.splitext(fil)
+                if fext == ".h5":
+                    h5_pth.append(os.path.join(root, fil))
+                    h5_fn.append(fname)
+            break
+        else:
+            for fil in files:
+                fname, fext = os.path.splitext(fil) 
+                aux = 0
+                for i in range(len(find_string)):    
+                    if str(find_string[i]) in fname:aux = aux + 1
+                
+                if fext == ".h5" and aux == len(find_string):
+                    h5_pth.append(os.path.join(root, fil))
+                    h5_fn.append(fname)
+
+    if not h5_fn:
+        raise Exception("no h5 file with ",find_string,"in ",path)          
+        
+    return h5_fn, h5_pth
+
+def load_h5(model,path,config):
+    # eg. tfh5.get_weight_from_ckpt("1679349568.3157873_leakyrelu_adamamsgrad_0_4000_ckpt-00000009/1679349568.3157873_leakyrelu_adamamsgrad_0_4000_ckpt-00000009-00000017.h5",train_config)
+    print('load_h5')
+
+    h5fn , h5pth = find_h5(path, name_it(config,True) )
+    print(h5fn,h5pth)
+    
+    #full_ckpt_path = os.path.join(aux.CKPT_PATH,h5_folder_nd_file)
+    #model.load_weights(full_ckpt_path)
+    #print("\t\nweights loaded from",full_ckpt_path)
+
+    #model_name = os.path.splitext(os.path.basename(h5_folder_nd_file))[0]
+    #model_weights_path = aux.WEIGHTS_PATH + model_name + '_weights.h5'
+    #model.save_weights(model_weights_path)
+    #print("\tweights saved to",model_weights_path)
+
+    return model
 
 #--------------------------------------------------------#
 ## CALLBACKS

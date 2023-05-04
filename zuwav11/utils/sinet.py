@@ -77,6 +77,7 @@ class Sinet:
         if self.model_config['full_or_max'] == 'full': return p_es
         elif self.model_config['full_or_max'] == 'max': return np.max(p_es, axis=0)
         
+        
     def get_sigmoid_fl(self, vpath , frame_intervals , debug = False):
         '''
             gets 1 full sigmoid for each pair of (start_frame,eend_frame)

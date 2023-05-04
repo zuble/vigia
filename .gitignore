@@ -1,6 +1,7 @@
 */utils/__pycache__/
 */model/ckpt/
 */model/model/
+*/model/logs/
 */.neptune/
 */aas
 

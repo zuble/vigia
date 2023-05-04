@@ -1,4 +1,4 @@
-import os, cv2, numpy as np
+import os, cv2, subprocess, numpy as np
 
 from sklearn.model_selection import train_test_split
 
@@ -104,42 +104,65 @@ def train_valdt_from_npy():
 ## WHICH HAVE FRAME LEVEL LABEL ANNOTATIONS 
 
 
-## 1 gets all frame interval from annotations
 def create_train_valdt_test_from_xdvtest_bg():
     
-    relevant_time = 4
+    import moviepy.editor as mp
+    def is_silent(video_path, threshold=-50.0):
+        
+        def print_acodec_from_mp4(data, printt=False, only_sr=False):
+            out = []
+            for i in range(len(data)):
+                output = subprocess.check_output('ffprobe -hide_banner -v error -select_streams a:0 -show_entries stream=codec_name,channels,sample_rate,bit_rate -of default=noprint_wrappers=1 -of compact=p=0:nk=1 ' + str('"' + data[i] + '"'), shell=True)
+                output = str(output).replace("\\n", "").replace("b", "").replace("'", "").splitlines()[0]
+                out.append(output)
+                if printt: print(output)
+            if only_sr: return int(str(out[0]).split('|')[1])
+            else: return out
+            
+        mp4_fs_aac = print_acodec_from_mp4([video_path], only_sr=True)
+        audio = mp.AudioFileClip(filename=video_path, fps=mp4_fs_aac)
     
-    def get_new_list(list):    
-        #OLD ('...v=k7R_Qo-BiAw__#00-10-30_00-10-51_label_B6-0-0.mp4', [(0, 150), (296, 505)])
-        #NEW ('...v=k7R_Qo-BiAw__#00-10-30_00-10-51_label_B6-0-0.mp4', [(0, 150, 1), (151, 295, 0), (296, 505, 1)]) 
-        
-        #OLD ('...v=UK2w9Sh47fM__#1_label_G-0-0.mp4', [(0, 209), (210, 500)], 1198)
-        #NEW ('...v=UK2w9Sh47fM__#1_label_G-0-0.mp4', [(0, 209, 1), (210, 500, 1), (501, 1198, 0)])
-        
-        #OLD ('...v=ZkUciDD55kA__#00-00-00_00-00-30_label_G-0-0.mp4', [(124, 617)], 722)
-        #NEW ('...v=ZkUciDD55kA__#00-00-00_00-00-30_label_G-0-0.mp4', [(0, 123, 0), (124, 617, 1), (618, 722, 0)]) 
-        
-        #OLD ('...v=7rDRFFSUrPI__#00-01-50_00-02-32_label_G-0-0.mp4', [(655, 700), (840, 860), (912, 930)])
-        #NEW ('...v=7rDRFFSUrPI__#00-01-50_00-02-32_label_G-0-0.mp4', [(0, 654, 0), (655, 700, 1), (701, 839, 0), (840, 860, 1), (861, 911, 0), (912, 930, 1)]) 
-        
-        new_list = []
-        for video_j in range(len(list)):
-            print(list[video_j])
-            vpath = list[video_j][0]
-            anom_intervals = list[video_j][1]
+        if audio is None: audio.close(); return True
+
+        aud_arr = audio.to_soundarray()
+        max_volume = np.max(np.abs(np.mean(aud_arr, axis=1).astype(np.float32)))
+
+        # Convert the max volume to dB
+        max_volume_db = 20 * np.log10(max_volume)
+
+        audio.close()
+        return max_volume_db <= threshold
+    
+
+    ## with is_silent this video gets removed , but the logic stays the same
+    #OLD v=38GQ9L2meyE__#1_label_B6-0-0 26 80 210 288 377 396 450 517 597 628 650 850 895 973 1106 1226 1330 1400 1490 1675 1713 1820 1890 1980 2025 2100 2177 2290 2375 2450 2579 2655 2657 3045 3091 3170 3259 3475 3571 4060 4143 4288 4364 4450
+
+    #NEW ('/raid/DATASETS/anomaly/XD_Violence/testing_copy/v=38GQ9L2meyE__#1_label_B6-0-0.mp4', [(26, 80, 1), (81, 209, 0), (210, 973, 1), (974, 1105, 0), (1106, 1226, 1), (1227, 1329, 0), (1330, 2450, 1), (2451, 2578, 0), (2579, 4450, 1), (4451, 4650, 0)]) 
+
+    relevant_time = 4
+    fp = '/raid/DATASETS/anomaly/XD_Violence/annotations.txt'
+    data = []
+    
+    with open(fp, 'r') as f:
+        for line in f.readlines():
+            parts = line.strip().split()
+            video_path = os.path.join(globo.SERVER_TEST_COPY_PATH,str(parts[0])+'.mp4')
             
-            ## if tot_frames was added to old_list, 
-            ## LAST NORMAL frame interval is releveant
-            if len(list[video_j]) == 3: frame_max = int(list[video_j][2])
-            else: frame_max = anom_intervals[-1][-1]
-        
+            # Check if the video is silent
+            if is_silent(video_path):
+                print(f"\nSkipping silent video: {video_path}\n")
+                continue
+            
+            video = cv2.VideoCapture(video_path);tot_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT));fps=int(video.get(cv2.CAP_PROP_FPS));video.release()
+            anom_intervals = [(int(parts[i]), int(parts[i + 1])) for i in range(1, len(parts), 2)]
+            print(line.replace("\n",""))
+            
             intervals_with_labels = [];prev_frame = 0
-            
-            ## Check if INITIAL NORMAL frame interval is relevant
+            ## Check if [0, INITIAL frame from anom_inteval] is relevant
             if anom_intervals[0][0] > fps * relevant_time:
                 intervals_with_labels.append((0, anom_intervals[0][0] - 1, 0))
                 prev_frame = anom_intervals[0][0] - 1
-            
+
             for interval_i in range(len(anom_intervals)):
                 start, end = anom_intervals[interval_i]
                 
@@ -151,58 +174,29 @@ def create_train_valdt_test_from_xdvtest_bg():
                         # Merge the current anomalous interval with the previous one
                         prev_anom_interval = intervals_with_labels.pop()
                         start = prev_anom_interval[0]
-            
-                #if prev_frame < start and interval_i != 0:
-                #    # Add normal interval
-                #    intervals_with_labels.append((prev_frame, start - 1, 0))
-                    
+
                 # Add anomalous interval
                 intervals_with_labels.append((start, end, 1))
                 prev_frame = end + 1
-
-            ## ADD 
-            if prev_frame < frame_max:
-                intervals_with_labels.append((prev_frame, frame_max, 0))
                 
-            print((vpath, intervals_with_labels),"\n\t")
-            new_list.append((vpath, intervals_with_labels))
-            
-        return new_list 
+            ## appends [end frame of last anomalous interval,totframes] interval if relevant
+            if tot_frames - prev_frame > fps * relevant_time:
+                intervals_with_labels.append((prev_frame, tot_frames, 0))
+                
+            data.append((video_path, intervals_with_labels))
+            print(data[-1],"\n")
 
-
-    ## from test annotations get line like this one
-    ## ('...v=k7R_Qo-BiAw__#00-10-30_00-10-51_label_B6-0-0.mp4', [(0, 150), (296, 505)])
-    fp = '/raid/DATASETS/anomaly/XD_Violence/annotations.txt'
-    data = []
-    with open(fp, 'r') as f:
-        for line in f.readlines():
-            parts = line.strip().split()
-            video_path = os.path.join(globo.SERVER_TEST_COPY_PATH,str(parts[0])+'.mp4')
-            video = cv2.VideoCapture(video_path);tot_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT));fps=int(video.get(cv2.CAP_PROP_FPS));video.release()
-            intervals = [(int(parts[i]), int(parts[i + 1])) for i in range(1, len(parts), 2)]
-            
-            ## appends tot_frames only when ther's a relevant normal interval in the end of video
-            if tot_frames - int(intervals[-1][-1]) > fps * relevant_time:
-                data.append((video_path, intervals , tot_frames))
-            ## otherwise last abnormal end interval is used as the final video interval
-            else : data.append((video_path, intervals))
-            print(data[-1])
-    
-    
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
     train_data, val_data = train_test_split(train_data, test_size=0.25, random_state=42)  # 0.25 * 0.8 = 0.2
     
-    new_train = get_new_list(train_data)
-    print("\tTRAIN",np.shape(train_data),np.shape(new_train) )
-    new_valdt = get_new_list(val_data)
-    print("\n\tVALDT",np.shape(val_data),np.shape(new_valdt))
-    new_test = get_new_list(test_data)
-    print("\n\tTEST",np.shape(test_data),np.shape(new_test))
+    print("\tTRAIN",np.shape(train_data))
+    print("\n\tVALDT",np.shape(val_data))
+    print("\n\tTEST",np.shape(test_data))
     
     data_dict = {
-        "train" : new_train , 
-        "valdt" : new_valdt , 
-        "test" : new_test
+        "train" : train_data , 
+        "valdt" : val_data , 
+        "test" : test_data
     }
     np.save(os.path.join(globo.SERVER_TEST_COPY_PATH,'npy/dataset_from_xdvtest_bg_data.npy'), data_dict)
    
@@ -227,7 +221,7 @@ def train_valdt_test_from_xdvtest_bg_from_npy(printt=False):
                             vpath = data[typee][video_j][0]
                             if os.path.join(root, file) == vpath: ok =True
                             
-                    if not ok: raise Exception("its not ok")
+                    if not ok: print(os.path.join(root, file),"not in data")
     
     
     if printt:
@@ -268,85 +262,10 @@ def train_valdt_test_from_xdvtest_bg_from_npy(printt=False):
             sorted_interval_counts = {k: v for k, v in sorted(interval_counts.items())}
             print("\nInterval counts:", sorted_interval_counts)
             
+    
     return data 
 
 
-## generates sinet outouts for each frame interval and saves
-'''
-def create_npz_pes_frame_interval():
-    import utils.sinet as sinet
-    
-    CFG_SINET = {
-        'sinet_version': 'fsd-sinet-vgg42-tlpf_aps-1',
-        'sinet_v': 'sinet42tlpf_aps',
-        
-        'graph_filename' : os.path.join(globo.FSDSINET_PATH,"fsd-sinet-vgg42-tlpf_aps-1.pb"),
-        'metadata_file'  : os.path.join(globo.FSDSINET_PATH,"fsd-sinet-vgg42-tlpf_aps-1.json"),
-        
-        'audio_fs_input':22050,
-        'batchSize' : 64,
-        'lastPatchMode': 'repeat',
-        'patchHopSize' : 50,
-        
-        
-        'anom_labels' : ["Alarm","Boom","Crowd","Dog","Drill","Explosion","Fire","Gunshot and gunfire","Hammer","Screaming","Screech",\
-                        "Shatter","Shout","Siren","Slam","Squeak","Yell"],
-        'anom_labels_i' : [4,18,51,59,65,72,78,92,94,145,146,147,148,152,154,161,198],
-        
-        'anom_labels2' : ["Boom","Explosion","Fire","Gunshot and gunfire","Screaming",\
-                        "Shout","Siren","Yell"],
-        'anom_labels_i2' : [18,72,78,92,147,148,152,198],
-        
-        'full_or_max' : 'max', #chose output to (timesteps,labels_total) ot (1,labels_total)
-        'labels_total' : 200
-        
-    }
-    
-    data=train_valdt_test_from_xdvtest_bg_from_npy(True)
-    sinet = sinet.Sinet(CFG_SINET)
-    data_dicts= {'train': [], 'valdt': [], 'test': []}
-
-    for i in range(len(data)): 
-                
-        if not i:typee = "train"
-        elif i == 1:typee = "valdt"
-        else: typee = "test"
-        print("\n*****",typee,"******************\n")
-        
-        total_intervals = 0
-        for video_j in range(len(data[typee])):
-            line = data[typee][video_j]
-            vpath = data[typee][video_j][0]
-            frame_intervals = data[typee][video_j][1] #(sf,ef,label)
-            
-            total_intervals += len(frame_intervals)
-            
-            p_es_array = sinet.get_sigmoid_fl(vpath,frame_intervals)
-            
-            # Store the vpath, frame_interval, p_es_array, and label for each interval
-            for k in range(len(p_es_array)):
-                data_dicts[typee].append({
-                    'vpath': vpath,
-                    'frame_interval': frame_intervals[k],
-                    'p_es_array': p_es_array[k],
-                    'label': frame_intervals[k][2]
-                })
-                print(vpath,frame_intervals[k],np.shape(p_es_array[k]),frame_intervals[k][2])
-            
-            #print("\n\n\n")
-            #for k in range(len(p_es_array)):
-            #    print("interval",k,"@",np.shape(p_es_array[k]),frame_intervals[k][2])
-            
-        print("\n\n\n***********************\n",total_intervals,len(data_dicts[typee]))
-            
-    # Save the data for each typee to a single .npz file
-    for typee in data_dicts:
-        ofn = f"{CFG_SINET['sinet_v']}-fl-{typee}.npz"
-        ofp = os.path.join('/raid/DATASETS/.zuble/vigia/zuwav11/aas',ofn)
-        print(ofn,'\n',ofp)
-        # Save the vpath, frame_interval, p_es_array, and label as .npz files
-        np.savez_compressed(ofp, data=data_dicts[typee])
-'''
 
 ## ***************************************** ##
 

@@ -69,7 +69,7 @@ def gelu(x):
 
 
 def form_model_wav(params):
-    print("\nFORM_MODEL @",print(params['full_or_max']),"\n")
+    print("\nFORM_MODEL @",print(params['arch']),"\n")
    
     ''' waves coming '''
    
@@ -80,7 +80,8 @@ def form_model_wav(params):
     elif params["ativa"]=='relu': ativa = 'relu'
     else: raise Exception("no ativa named assim")
 
-
+    ## raw proccesing of sinet output with patterning
+    '''
     ## (TIMESTEPS,AAS)
     if params["full_or_max"] == 'full':
         aas_input = tf.keras.layers.Input(shape=(None, params["sinet_aas_len"]), name='input_layer')
@@ -100,12 +101,43 @@ def form_model_wav(params):
             layers.Dense(128, activation=ativa, name='hidden_layer'),
             layers.Dense(1, activation='sigmoid', name='output_layer')
         ])
+    '''
     
+    ## c1d or lstm
+    if params['arch'] == 'c1d':
+                model = tf.keras.Sequential([
+            layers.Input(shape=(None, params["sinet_aas_len"]), name='input_layer'),
+            layers.Conv1D(64, kernel_size=3, activation=ativa, name='conv1d_layer1'),
+            layers.MaxPooling1D(pool_size=2, name='maxpool1d_layer1'),
+            layers.Conv1D(128, kernel_size=3, activation=ativa, name="conv1d_layer2"),
+            layers.MaxPooling1D(pool_size=2, name='maxpool1d_layer2'),
+            layers.Flatten(name='flatten_layer'),
+            layers.Dense(128, activation=ativa, name='hidden_layer'),
+            layers.Dense(1, activation='sigmoid', name='output_layer')
+        ])
+                
+    elif params['arch'] == 'lstm' :
+        model = tf.keras.Sequential([
+            layers.Input(shape=(None, params["sinet_aas_len"]), name='input_layer'),
+            layers.LSTM(128, activation=ativa, return_sequences=True, name='lstm_layer'),
+            layers.GlobalMaxPooling1D(),
+            layers.Dense(64, activation=ativa, name='hidden_layer'),
+            layers.Dense(1, activation='sigmoid', name='output_layer')
+        ])
+
+    elif params['arch'] == 'topgurlmax':
+        model = tf.keras.Sequential([
+            layers.Input(shape=(None,params["sinet_aas_len"]), name='input_layer'),
+            #layers.Lambda(lambda x: tf.reduce_max(x, axis=1), name='max_pooling'), # = np.max(input , axis = 0)
+            layers.Dense(128, activation=ativa, name='hidden_layer1'),
+            layers.Dense(32, activation=ativa, name='hidden_layer2'),
+            layers.Dense(1, activation='sigmoid', name='output_layer')
+        ])
     
     #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
-    if params["optima"]=='sgd':optima = keras.optimizers.SGD(learning_rate = 0.0002)
-    elif params["optima"]=='adam':optima = keras.optimizers.Adam(learning_rate = 0.0002)
-    elif params["optima"]=='adamamsgrad':optima = keras.optimizers.Adam(learning_rate = 0.0002,amsgrad=True)
+    if params["optima"]=='sgd':optima = keras.optimizers.SGD(learning_rate = params["lr"])
+    elif params["optima"]=='adam':optima = keras.optimizers.Adam(learning_rate = params["lr"])
+    elif params["optima"]=='adamamsgrad':optima = keras.optimizers.Adam(learning_rate = params["lr"],amsgrad=True)
     else: raise Exception("no optima named assim")
 
     METRICS = [
@@ -129,14 +161,14 @@ def form_model_wav(params):
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
 
     time_str = str(time.time()); 
-    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["full_or_max"])+'_'+str(params["frame_max"])
+    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["arch"])
     print("\n\t",model_name)
     return model , model_name
 
 #--------------------------------------------------------#
 ## CALLBACKS
 
-def ckpt_clbk(model_name):
+def ckpt_clbk(model_name , save_best = False):
     #https://keras.io/api/callbacks/model_checkpoint/
     p = os.path.join(globo.CKPT_PATH,model_name)
     if not os.path.exists(p):
@@ -146,7 +178,7 @@ def ckpt_clbk(model_name):
     return ModelCheckpoint( filepath=p+'/'+model_name+'_ckpt-{epoch:02d}-{loss:.2f}.h5' , \
                             monitor='loss',\
                             save_weights_only=True,\
-                            #save_best_only=True,\
+                            save_best_only=save_best,\
                             mode='auto',\
                             save_freq='epoch',\
                             verbose = 1)

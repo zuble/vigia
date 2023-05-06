@@ -188,6 +188,7 @@ class DataGenOrigBatch(tf.keras.utils.Sequence):
 
 
     ## FOOD 4 TOUGHT
+    ## https://github.com/MTG/essentia/issues/1268
 '''    
     As the Essentia algorithms are not thread-safe, you should avoid using multithreading (e.g., ThreadPoolExecutor). Instead, you can use the concurrent.futures.ProcessPoolExecutor to provide process-based parallelization. This will ensure that each function call will be executed in a separate process, avoiding issues with thread safety.
 

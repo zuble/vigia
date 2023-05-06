@@ -119,15 +119,15 @@ def form_model_wav(params):
     elif params['arch'] == 'lstm' :
         model = tf.keras.Sequential([
             layers.Input(shape=(None, params["sinet_aas_len"]), name='input_layer'),
-            layers.LSTM(128, activation=ativa, return_sequences=True, name='lstm_layer'),
-            layers.GlobalMaxPooling1D(),
+            layers.LSTM(128, activation=ativa, return_sequences=False, name='lstm_layer'),
+            #layers.GlobalMaxPooling1D(),
             layers.Dense(64, activation=ativa, name='hidden_layer'),
             layers.Dense(1, activation='sigmoid', name='output_layer')
         ])
 
     elif params['arch'] == 'topgurlmax':
         model = tf.keras.Sequential([
-            layers.Input(shape=(None,params["sinet_aas_len"]), name='input_layer'),
+            layers.Input(shape=(params["sinet_aas_len"],), name='input_layer'),
             #layers.Lambda(lambda x: tf.reduce_max(x, axis=1), name='max_pooling'), # = np.max(input , axis = 0)
             layers.Dense(128, activation=ativa, name='hidden_layer1'),
             layers.Dense(32, activation=ativa, name='hidden_layer2'),

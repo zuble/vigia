@@ -26,6 +26,7 @@ class Sinet:
         
         print("\n\nSINET VERSION", self.model_config["sinet_version"] , "w",self.model_config['full_or_max'],"output")
         
+        
     def print_acodec_from_mp4(self, data, printt=False, only_sr=False):
         out = []
         for i in range(len(data)):
@@ -35,6 +36,7 @@ class Sinet:
             if printt: print(output)
         if only_sr: return int(str(out[0]).split('|')[1])
         else: return out
+
 
     def get_sigmoid(self, vpath , sf = 0 , ef = -1 , debug = False):
         '''
@@ -92,7 +94,7 @@ class Sinet:
         p_es_array = np.empty((len(frame_intervals),), dtype=object)
 
         print(vpath , frame_intervals)
-        for i, (sf, ef, label) in enumerate(frame_intervals):
+        for i, (sf, ef, *_) in enumerate(frame_intervals):
             st = sf / 24;et = ef / 24
             audio_es_cut = audio_es.subclip(t_start=st, t_end=et)
             aud_arr = audio_es_cut.to_soundarray()

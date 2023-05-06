@@ -51,7 +51,7 @@ CFG_SINET = {
 }
 
 CFG_WAV= {
-    "arch" : 'lstm', #c1d , lstm , topgurlmax
+    "arch" : 'topgurlmax', #c1d , lstm , topgurlmax
     "sinet_aas_len" : CFG_SINET["labels_total"], 
     
     "sigm_norm" : False,
@@ -60,14 +60,14 @@ CFG_WAV= {
     "shuffle" : False,
     
     "ativa" : 'relu',
-    "optima" : 'adam',
-    "lr": 1e-3,
+    "optima" : 'adamamsgrad',
+    "lr": 1e-4,
     "batch_type" : 0,   # =0 all batch have frame_max or video length // =1 last batch has frame_max frames // =2 last batch has no repetead frames
     "frame_max" : 8000,
     "ckpt_start" : f"{0:0>8}",  #used in train_model: if 00000000 start from scratch, else start from ckpt with CFG_WAV stated
     
     "epochs" : 100,
-    "batch_size" : 16
+    "batch_size" : 4
 }
 
 
@@ -87,7 +87,6 @@ class DataGenFL0(tf.keras.utils.Sequence):
             self.data = self.data[:dummy]
             self.len_data = dummy
         
-    
         #self.sinet = sinet.Sinet(CFG_SINET)
         
         self.wav_arch = CFG_WAV["arch"]
@@ -98,6 +97,7 @@ class DataGenFL0(tf.keras.utils.Sequence):
         self.shuffle = CFG_WAV["shuffle"]
         
         self.debug = debug
+
 
     def sigmoid_rescale(self,data):
     
@@ -167,7 +167,6 @@ class DataGenFL0(tf.keras.utils.Sequence):
         if self.wav_arch == 'topgurlmax':
             p_es_arr = np.max(p_es_arr , axis = 0)
         
-        # For NumPy arrays
         if np.isnan(p_es_arr).any() : print("Input data contains NaN values:")
         
         X = np.expand_dims(np.array(p_es_arr).astype(np.float32),0)

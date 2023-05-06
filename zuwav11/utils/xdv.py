@@ -103,7 +103,9 @@ def train_valdt_from_npy():
 ## BY USING XDV ANOMALOUS VIDEOS FROM TEST
 ## WHICH HAVE FRAME LEVEL LABEL ANNOTATIONS 
 
-
+#####
+## frist aproach by considering the intervals fully
+## and by getting normal intervals from the test BG 
 def create_train_valdt_test_from_xdvtest_bg():
     
     import moviepy.editor as mp
@@ -199,7 +201,6 @@ def create_train_valdt_test_from_xdvtest_bg():
         "test" : test_data
     }
     np.save(os.path.join(globo.SERVER_TEST_COPY_PATH,'npy/dataset_from_xdvtest_bg_data.npy'), data_dict)
-   
     
 ## just loads it
 def train_valdt_test_from_xdvtest_bg_from_npy(printt=False):
@@ -266,6 +267,160 @@ def train_valdt_test_from_xdvtest_bg_from_npy(printt=False):
     return data 
 
 
+####
+## second approach by chuncking in intervals of 4 secs
+## and by getting normal intervals from test normals
+def get_frame_intervals_chuncked_from_test_bg(chunck_size=4):
+    
+    def create_sub_intervals(start_frame, end_frame, label=1 , max_duration=chunck_size*24):
+        frame_count = end_frame - start_frame
+        
+        if frame_count <= max_duration:
+            return None , None
+        
+        sub_fintervals , sub_tintervals = [] , []
+        current_start = start_frame
+        
+        while current_start < end_frame:
+            current_end = min(current_start + max_duration, end_frame)
+            
+            # Discard the last interval if its duration doesn't match max_duration
+            if current_end == end_frame and (current_end - current_start) != max_duration:
+                break
+            
+            sub_finterval = (current_start, current_end,label)
+            sub_fintervals.append(sub_finterval)
+            
+            sub_tinterval = ( round(current_start/24 , 4) , round(current_end/24 , 4),label)
+            sub_tintervals.append(sub_tinterval)
+            
+            current_start = current_end
+        
+        return sub_fintervals , sub_tintervals
+    
+    print('\nOPENING annotations',)
+    txt = open('/raid/DATASETS/anomaly/XD_Violence/annotations.txt','r')
+    txt_data = txt.read()
+    txt.close()
+
+    video_list = [line.split() for line in txt_data.split("\n") if line]
+
+    frame_intervals , time_intervals = [] , []
+    interval_count = 0
+    for video_j in range(len(video_list)):
+        
+        sub_fintervals_total , sub_tintervals_total = [] , []
+        for nota_i in range(len(video_list[video_j])):
+            if not nota_i % 2 and nota_i != 0: #i=2,4,6...
+                
+                aux2 = int(video_list[video_j][nota_i]) ; aux1 = int(video_list[video_j][nota_i-1])
+                aux2t = round(aux2/24, 2) ; aux1t = round(aux1/24, 2)
+                dif_aux = aux2-aux1 ; dif_aux_t = round(dif_aux/24,2)
+                
+                #print(video_list[video_j][nota_i-1],video_list[video_j][nota_i])    
+                
+                sub_fintervals , sub_tintervals = create_sub_intervals(aux1, aux2)
+                if sub_fintervals is not None: 
+                    #print(sub_fintervals)
+                    sub_fintervals_total.extend(sub_fintervals)
+                    sub_tintervals_total.extend(sub_tintervals)        
+                    
+        if len(sub_fintervals_total) != 0:
+            #print(sub_fintervals_total)
+            frame_intervals.append((os.path.join(globo.SERVER_TEST_COPY_PATH,video_list[video_j][0]+".mp4"),sub_fintervals_total))
+            time_intervals.append((os.path.join(globo.SERVER_TEST_COPY_PATH,video_list[video_j][0]+".mp4"),sub_tintervals_total))
+            
+            interval_count += np.shape(frame_intervals[-1][1])[0]
+            
+            #print(np.shape(frame_intervals[-1][1])[0])
+            #print(video_list[video_j])
+            #print(frame_intervals[-1])
+            #print(time_intervals[-1],"\n")
+    
+    print("total intervals",interval_count)
+    return frame_intervals , time_intervals
+
+def divide_into_train_valdt_test(data):
+    from sklearn.model_selection import train_test_split
+    train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
+    train_data, val_data = train_test_split(train_data, test_size=0.25, random_state=42)
+
+    print("\n\tTRAIN",np.shape(train_data)[0],"videos with ",sum(np.shape(train_data[k][1])[0] for k in range(len(train_data))),"intervals")
+    print("\n\tVALDT",np.shape(val_data)[0],"videos with",sum(np.shape(val_data[k][1])[0] for k in range(len(val_data))),"intervals")
+    print("\n\tTEST",np.shape(test_data)[0],"videos with",sum(np.shape(test_data[k][1])[0] for k in range(len(test_data))),"intervals")
+
+    data_dict = {
+        "train" : train_data , 
+        "valdt" : val_data , 
+        "test" : test_data
+    }
+
+    return data_dict
+
+
+#####
+def get_testxdvanom_info():    
+    print('\nOPENING annotations',)
+    txt = open('/raid/DATASETS/anomaly/XD_Violence/annotations.txt','r')
+    txt_data = txt.read()
+    txt.close()
+
+    video_list = [line.split() for line in txt_data.split("\n") if line]
+    total_anom_frame_count = 0
+    frame_intervals = []
+    for video_j in range(len(video_list)):
+        #print(video_list[video_j])
+        video_anom_frame_count = 0
+        for nota_i in range(len(video_list[video_j])):
+            if not nota_i % 2 and nota_i != 0: #i=2,4,6...
+                aux2 = int(video_list[video_j][nota_i])
+                aux1 = int(video_list[video_j][nota_i-1])
+                aux2t = round(aux2/24, 2) ; aux1t = round(aux1/24, 2)
+                dif_aux = aux2-aux1
+                dif_aux_t = round(dif_aux/24,2)
+                total_anom_frame_count += dif_aux 
+                video_anom_frame_count += dif_aux
+                frame_intervals.append((dif_aux,dif_aux_t,aux1,aux1t,aux2,aux2t,os.path.basename(video_list[video_j][0])))
+        #print(video_anom_frame_count,'frames | ', "%.2f"%(video_anom_frame_count/24) ,'secs | ', int(video_list[video_j][-1]),'max anom frame\n')
+    
+    
+    total_secs = total_anom_frame_count/24
+    mean_secs = total_secs / len(video_list)
+    mean_frames = total_anom_frame_count / len(video_list)
+    print("TOTAL OF ", "%.2f"%(total_anom_frame_count),"frames  "\
+            "%.2f"%(total_secs), "secs\n"\
+            "MEAN OF", "%.2f"%(mean_frames),"frames  "\
+            "%.2f"%(mean_secs), "secs per video\n")
+    
+    
+    # Sort the frame_intervals list based on the first element (dif_aux) in each tuple
+    sorted_frame_intervals = sorted(frame_intervals, key=lambda x: x[0])
+    
+    more_then_x = 0
+    x = 5
+    for i in range(len(sorted_frame_intervals)):
+        print(i,sorted_frame_intervals[i])
+        vpath = sorted_frame_intervals[i][5]
+        count_vpath = 0
+        
+        if sorted_frame_intervals[i][0] < 135:
+            # Count how many times vpath appears in the sorted_frame_intervals at position 5
+            count_vpath = sum(1 for interval in sorted_frame_intervals if interval[5] == vpath)
+            print(f"video with {count_vpath} intervals\n")
+        
+        if sorted_frame_intervals[i][1] >= x: more_then_x += 1
+        
+    print("more_then_x",more_then_x)
+    
+    # Extract the dif_aux values from frame_intervals
+    dif_aux_values = [interval[1] for interval in sorted_frame_intervals]
+
+    # Calculate the mean and median of dif_aux values
+    mean_dif_aux = np.mean(dif_aux_values)
+    median_dif_aux = np.median(dif_aux_values)
+
+    print("Mean of dif_aux values:", mean_dif_aux)
+    print("Median of dif_aux values:", median_dif_aux)
 
 ## ***************************************** ##
 
@@ -296,3 +451,18 @@ def test_files():
     print('\n-------------------')
     return test_fn , test_normal_fn , test_abnormal_fn , test_labels 
 
+
+
+
+def fps_mean():
+    test_fp, *_ = test_files()
+    fps_count = 0 
+    for fp in test_fp:
+        cap = cv2.VideoCapture(fp)
+        if not cap.isOpened():
+            print("Error: Could not open the video file.")
+        else:
+            fps = int(cap.get(cv2.CAP_PROP_FPS))
+            fps_count += fps
+        cap.release()
+    print(f"fps_mean {round(fps_count/np.shape(test_fp)[0] , 4)}")

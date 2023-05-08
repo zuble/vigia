@@ -6,7 +6,10 @@ from tensorflow import keras
 from keras import layers
 from tensorflow.keras.callbacks import ModelCheckpoint
 
-from utils import globo
+from concurrent.futures import ProcessPoolExecutor
+
+from utils import globo , sinet
+
 
 #--------------------------------------------------------#
 # GPU TF CONFIGURATION
@@ -40,9 +43,9 @@ def set_tf_loglevel(level):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '0'
     logging.getLogger('tensorflow').setLevel(level)
 
-    gpus = tf.config.list_physical_devices('GPU')
-    print("\nNum GPUs Available: ", len(gpus))
-    #for i in range(len(gpus)) :print(str(gpus[i]))
+    #gpus = tf.config.list_physical_devices('GPU')
+    #print("\nNum GPUs Available: ", len(gpus))
+    ##for i in range(len(gpus)) :print(str(gpus[i]))
 
 def limit_gpu_gb(i):
     gpus = tf.config.list_physical_devices('GPU')
@@ -50,6 +53,120 @@ def limit_gpu_gb(i):
         gpus[i],
         [tf.config.LogicalDeviceConfiguration(memory_limit=31744)]
     )
+
+
+#--------------------------------------------------------#
+## DATA GENERATION FOR TRAINING AND VALIDATION
+''' APPROACH 1 w/o batch on xdv test_BG (0) and (1) '''
+class DataGenFL1(tf.keras.utils.Sequence):
+    def __init__(self, cfg_sinet , cfg_wav , mode = 'train' , dummy = 0 , debug = False):
+ 
+        self.mode = mode
+        if mode == 'valdt' : self.valdt = True ;  self.train = False
+        elif mode == 'train': self.train = True ; self.valdt = False
+        print("\n\nDataGen",mode,self.train,self.valdt)
+        
+        self.data = np.load(os.path.join(globo.AAS_PATH+"/full_interval",f"{cfg_sinet['sinet_version']}--fl_{self.mode}.npz"), allow_pickle=True)["data"]
+        self.len_data = len(self.data)
+        
+        if dummy:
+            self.data = self.data[:dummy]
+            self.len_data = dummy
+        
+        #self.sinet = sinet.Sinet(CFG_SINET)
+        
+        self.wav_arch = cfg_wav["arch"]
+        self.batch_size = cfg_wav["batch_size"]
+        self.sigm_norm = cfg_wav["sigm_norm"]
+        self.mm_norm = cfg_wav["mm_norm"]
+        
+        self.shuffle = cfg_wav["shuffle"]
+        
+        self.debug = debug
+
+
+    def sigmoid_rescale(self,data):
+    
+        def sigmoid(x):return 1 / (1 + np.exp(-x))
+        
+        num_features = data.shape[1]
+        scaled_data = np.zeros_like(data)
+
+        for feature_idx in range(num_features):
+            feature_data = data[:, feature_idx]
+
+            # Center the data around the mean
+            centered_data = feature_data - np.mean(feature_data)
+
+            # Apply sigmoid function
+            scaled_feature_data = sigmoid(centered_data)
+            scaled_data[:, feature_idx] = scaled_feature_data
+
+        return scaled_data
+    
+    def min_max_rescale(self,data):
+        ## data is (time_steps, feature_dim)
+        scaled_data = []
+        
+        for sample in data:
+            min_val = np.min(sample, axis=0)
+            max_val = np.max(sample, axis=0)
+            
+            # Avoid division by zero
+            feature_range = max_val - min_val
+            if np.isscalar(feature_range):
+                if feature_range == 0:
+                    feature_range = 1
+            else:
+                feature_range[feature_range == 0] = 1
+
+            scaled_sample = (sample - min_val) / feature_range
+            scaled_data.append(scaled_sample)
+
+        return np.array(scaled_data)
+ 
+ 
+    def __len__(self):
+        if self.debug: print("\n\n__len__",self.mode,"= n batchs = ",int(np.ceil(self.len_data / float(self.batch_size))), " w/ ",self.batch_size," vid_frames each")
+        return int(np.ceil(self.len_data / float(self.batch_size)))
+        
+        
+    def __getitem__(self, idx):
+        
+        #p_es_arr_total = [data[k]['p_es_array'] for k in range(len(data))]
+        #label_total = [data[k]['label'] for k in range(len(data))]
+        
+        vpath = self.data[idx]['vpath']
+        fi = self.data[idx]['frame_interval']
+        p_es_arr = self.data[idx]['p_es_array']
+        label = self.data[idx]['label']
+        label_str = 'NORMAL' if not label else 'ANOMALY'
+        #print("\n",idx,os.path.basename(vpath),label,"\n",fi,"\np_es_arr @ ",np.shape(p_es_arr))
+        
+        
+        if self.mm_norm:
+            p_es_arr = self.min_max_rescale(p_es_arr)
+            
+        if self.sigm_norm:
+            p_es_arr = self.sigmoid_rescale(p_es_arr)
+            
+        if self.wav_arch == 'topgurlmax':
+            p_es_arr = np.max(p_es_arr , axis = 0)
+        
+        if np.isnan(p_es_arr).any() : print("Input data contains NaN values:")
+        
+        X = np.expand_dims(np.array(p_es_arr).astype(np.float32),0)
+        y = np.expand_dims(np.array(label).astype(np.float32),0)
+         
+         
+        ## prints
+        if self.debug:
+            print(f"\n********** {self.mode}_{idx} **** {label_str} ***************\n")
+            print(  f"\n\n\n£££ {self.mode}_{self.wav_arch}_{idx} @ {os.path.basename(vpath)}\n"
+                    f"    X {X.shape} @{X.dtype} , y {y} , {y.shape} @{y.dtype}\n\n")
+        
+        return X , y
+
 
 
 #--------------------------------------------------------#
@@ -105,7 +222,7 @@ def form_model_wav(params):
     
     ## c1d or lstm
     if params['arch'] == 'c1d':
-                model = tf.keras.Sequential([
+        model = tf.keras.Sequential([
             layers.Input(shape=(None, params["sinet_aas_len"]), name='input_layer'),
             layers.Conv1D(64, kernel_size=3, activation=ativa, name='conv1d_layer1'),
             layers.MaxPooling1D(pool_size=2, name='maxpool1d_layer1'),
@@ -118,9 +235,9 @@ def form_model_wav(params):
                 
     elif params['arch'] == 'lstm' :
         model = tf.keras.Sequential([
-            layers.Input(shape=(None, params["sinet_aas_len"]), name='input_layer'),
-            layers.LSTM(128, activation=ativa, return_sequences=False, name='lstm_layer'),
-            #layers.GlobalMaxPooling1D(),
+            layers.Input(shape=(None,params["sinet_aas_len"]), name='input_layer'),
+            layers.LSTM(128, activation=ativa, return_sequences=True, name='lstm_layer'),
+            layers.GlobalMaxPooling1D(),
             layers.Dense(64, activation=ativa, name='hidden_layer'),
             layers.Dense(1, activation='sigmoid', name='output_layer')
         ])
@@ -161,9 +278,10 @@ def form_model_wav(params):
     print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
 
     time_str = str(time.time()); 
-    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'_'+str(params["arch"])
+    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'-'+str(params["lr"])+'_'+str(params["arch"])
     print("\n\t",model_name)
     return model , model_name
+
 
 #--------------------------------------------------------#
 ## CALLBACKS

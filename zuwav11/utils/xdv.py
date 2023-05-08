@@ -1,4 +1,4 @@
-import os, cv2, subprocess, numpy as np
+import os, cv2, subprocess, random, numpy as np
 
 from sklearn.model_selection import train_test_split
 
@@ -102,10 +102,14 @@ def train_valdt_from_npy():
 ## EXCLUSIVLY TO TRAIN SINEET NEW CLASSIFIER
 ## BY USING XDV ANOMALOUS VIDEOS FROM TEST
 ## WHICH HAVE FRAME LEVEL LABEL ANNOTATIONS 
+## AS FRAME INTERVALS OF LABEL 1
 
-#####
-## frist aproach by considering the intervals fully
-## and by getting normal intervals from the test BG 
+#############
+## APPROACH 1 
+# from test BG created label 0 and 1
+# label 1 -> annoted intervals if they are relevant ( > 4sec*24fps)
+# label 0 -> outer regions of annoted intervals if they are relevant
+
 def create_train_valdt_test_from_xdvtest_bg():
     
     import moviepy.editor as mp
@@ -267,25 +271,28 @@ def train_valdt_test_from_xdvtest_bg_from_npy(printt=False):
     return data 
 
 
-####
-## second approach by chuncking in intervals of 4 secs
-## and by getting normal intervals from test normals
-def get_frame_intervals_chuncked_from_test_bg(chunck_size=4):
-    
-    def create_sub_intervals(start_frame, end_frame, label=1 , max_duration=chunck_size*24):
+#############
+## APPROACH 2
+# from test BG created label 1 | from train A created label 0
+# label 1 -> sub divided all original frame interval annotations into chuck_fsize 
+# label 0 -> iterates over all videos until i got the same frame_intervals as label 1
+#            and for each video got a random number of frame_intervals between 2 and 4)
+def get_frame_intervals_chuncked_from_test_bg(chunck_fsize = 4 * 24, debug=False):
+    print("\n***********TEST\n\nget_frame_intervals_chuncked_from_test_bg\n\n")
+    def create_sub_intervals(start_frame, end_frame, label=1 , ):
         frame_count = end_frame - start_frame
         
-        if frame_count <= max_duration:
+        if frame_count <= chunck_fsize:
             return None , None
         
         sub_fintervals , sub_tintervals = [] , []
         current_start = start_frame
         
         while current_start < end_frame:
-            current_end = min(current_start + max_duration, end_frame)
+            current_end = min(current_start + chunck_fsize, end_frame)
             
             # Discard the last interval if its duration doesn't match max_duration
-            if current_end == end_frame and (current_end - current_start) != max_duration:
+            if current_end == end_frame and (current_end - current_start) != chunck_fsize:
                 break
             
             sub_finterval = (current_start, current_end,label)
@@ -332,30 +339,130 @@ def get_frame_intervals_chuncked_from_test_bg(chunck_size=4):
             
             interval_count += np.shape(frame_intervals[-1][1])[0]
             
-            #print(np.shape(frame_intervals[-1][1])[0])
-            #print(video_list[video_j])
-            #print(frame_intervals[-1])
-            #print(time_intervals[-1],"\n")
+            if debug:
+                print(np.shape(frame_intervals[-1][1])[0])
+                print(video_list[video_j])
+                print(frame_intervals[-1])
+                print(time_intervals[-1],"\n")
     
     print("total intervals",interval_count)
-    return frame_intervals , time_intervals
+    return frame_intervals , time_intervals , interval_count
 
-def divide_into_train_valdt_test(data):
+
+def get_frame_intervals_chuncked_from_train_a(total_intervals,chunck_fsize = 4 * 24, debug=False):
+    print("\n***********\nTRAIN\n\nget_frame_intervals_chuncked_from_train_a\n\n")
+    ## from a video paths get num_intervals with chunck_fsize
+    def get_random_fixed_intervals(video_path, num_intervals):
+        cap = cv2.VideoCapture(video_path)
+        
+        if not cap.isOpened():
+            print(f"Error: Could not open the video file {video_path}")
+            return None
+        
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        assert( int(cap.get(cv2.CAP_PROP_FPS)) , 24)
+        
+        if total_frames < chunck_fsize:
+            print(f"Error: Video {video_path} has fewer frames than the fixed interval size.")
+            return None
+        if debug:print("total_frames",total_frames)
+        
+        intervals = []
+        available_frames = list(range(0, total_frames - chunck_fsize))
+        for _ in range(num_intervals):
+            if not available_frames:break
+
+            start_frame = random.choice(available_frames)
+            end_frame = start_frame + chunck_fsize
+            intervals.append((start_frame, end_frame, 0))
+
+            ## Remove frames that are now part of an interval
+            available_frames = [frame for frame in available_frames if frame < start_frame or frame >= end_frame]
+
+        cap.release()
+        print(intervals)
+        ## Sort intervals by start_frame
+        return sorted(intervals, key=lambda x: x[0])
+    
+    ## get vpath list for train label_A
+    train_a_vpath = []
+    for root, dirs, files in os.walk(globo.SERVER_TRAIN_COPY_ALTER_PATH1):
+        if root != globo.SERVER_TRAIN_COPY_ALTER_PATH1 + '/NN' : ## these are excluded from xdv train dataset
+            print(root)
+            for file in files:
+                if file.find('.mp4') != -1 and 'label_A' in file:
+                    train_a_vpath.append(os.path.join(root, file))
+    print("train_a_vpath",np.shape(train_a_vpath))
+      
+    ##main loop tha iterates over all videos and gets a betwen 2 and 4 frame_intervals w/ chunck_fsize   
+    collected_intervals = []
+    total_intervals_collected = 0
+    interval_limit = 0
+    #while total_intervals_collected < total_intervals and interval_limit < 1000:
+    for i,video_path in enumerate(train_a_vpath):
+        print('\n',i,video_path)
+        
+        if total_intervals_collected >= total_intervals: break
+        
+        num_intervals = random.randint(2, 4)
+        if total_intervals_collected + num_intervals > total_intervals:
+            num_intervals = total_intervals - total_intervals_collected
+        
+        print(f"getting {num_intervals} intervals")
+        video_intervals = get_random_fixed_intervals(video_path, num_intervals)
+        if video_intervals is not None:
+            print("\t", video_intervals)
+            collected_intervals.append((video_path, video_intervals))
+            total_intervals_collected += len(video_intervals)
+        
+        if total_intervals_collected >= total_intervals: break
+        
+        interval_limit += 1
+
+    n_a_intervals = sum(np.shape(collected_intervals[k][1])[0] for k in range(len(collected_intervals)))
+    print("\ntotal intervals", n_a_intervals)
+    return collected_intervals , n_a_intervals
+
+
+#DATA = xdv.create_train_valdt_test_from_xdvtest_bg_train_a(True)
+def create_train_valdt_test_from_xdvtest_bg_train_a(debug=False):
+    
+    bg_frame_intervals , bg_time_intervals , n_bg_intervals = get_frame_intervals_chuncked_from_test_bg(debug=debug)
+    a_frame_intervals , n_a_intervals = get_frame_intervals_chuncked_from_train_a(n_bg_intervals,debug=debug)
+    print("\n\neg bg:",bg_frame_intervals[0] ,\
+        "\neg a:",a_frame_intervals[0])
+    
+    ## from (vpath1,frame_intervals) to (vpath1,frame_interval1,frame_interval2..)..
+    n_a_intervals = sum(np.shape(a_frame_intervals[k][1])[0] for k in range(len(a_frame_intervals)))
+    n_bg_intervals = sum(np.shape(bg_frame_intervals[k][1])[0] for k in range(len(bg_frame_intervals)))
+    data = [(vp, interval) for vp, intervals in bg_frame_intervals + a_frame_intervals for interval in intervals]
+    print("\n\nMERGED data intervals",data[0],"\n",np.shape(data)[0],"=",n_a_intervals+n_bg_intervals,"(",n_a_intervals,"+",n_bg_intervals,")")
+    print("NORMAL intervals", sum(1 for _, (_, _, label) in data if label == 0))
+    print("ABNORMAL intervals", sum(1 for _, (_, _, label) in data if label == 1))
+    assert(np.shape(data)[0],n_a_intervals+n_bg_intervals)
+    
     from sklearn.model_selection import train_test_split
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
     train_data, val_data = train_test_split(train_data, test_size=0.25, random_state=42)
 
-    print("\n\tTRAIN",np.shape(train_data)[0],"videos with ",sum(np.shape(train_data[k][1])[0] for k in range(len(train_data))),"intervals")
-    print("\n\tVALDT",np.shape(val_data)[0],"videos with",sum(np.shape(val_data[k][1])[0] for k in range(len(val_data))),"intervals")
-    print("\n\tTEST",np.shape(test_data)[0],"videos with",sum(np.shape(test_data[k][1])[0] for k in range(len(test_data))),"intervals")
+    print("\n\nSPLITEED")
+    print("\n\tTRAIN",np.shape(train_data)[0],'"videos" with 1 interval each')
+    print("\tNORMAL intervals", sum(1 for _, (_, _, label) in train_data if label == 0))
+    print("\tABNORMAL intervals", sum(1 for _, (_, _, label) in train_data if label == 1))
+    print("\n\tVALDT",np.shape(val_data)[0],'"videos" with 1 interval')
+    print("\tNORMAL intervals", sum(1 for _, (_, _, label) in val_data if label == 0))
+    print("\tABNORMAL intervals", sum(1 for _, (_, _, label) in val_data if label == 1))
+    print("\n\tTEST",np.shape(test_data)[0],'"videos" with 1 interval')
+    print("\tNORMAL intervals", sum(1 for _, (_, _, label) in test_data if label == 0))
+    print("\tABNORMAL intervals", sum(1 for _, (_, _, label) in test_data if label == 1))
 
     data_dict = {
         "train" : train_data , 
         "valdt" : val_data , 
         "test" : test_data
     }
-
-    return data_dict
+    np.save(os.path.join(globo.SERVER_TEST_COPY_PATH,'npy/dataset_from_xdvtest_bg_train_a_data.npy'), data_dict)
+    #return data_dict
 
 
 #####

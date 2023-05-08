@@ -2,24 +2,22 @@ import os, random, logging , cv2 , csv , time
 
 #import matplotlib.pyplot as plt
 import numpy as np
+from tqdm.keras import TqdmCallback
+
+''' GPU CONFIGURATION '''
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
+#os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'false'
 import tensorflow as tf
 print("tf",tf.version.VERSION)
 #from tensorflow import keras
-from tqdm.keras import TqdmCallback
 
 from utils import globo ,  xdv , tfh5
 
 
-''' GPU CONFIGURATION '''
-os.environ["CUDA_VISIBLE_DEVICES"]="3"
-
 tfh5.set_tf_loglevel(logging.ERROR)
 tf.debugging.set_log_device_placement(False) #Enabling device placement logging causes any Tensor allocations or operations to be printed.
-
 tfh5.check_gpu_conn()
-
 #tfh5.set_memory_growth()
-#os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'false'
 #tfh5.limit_gpu_gb(2)
 
 

@@ -300,3 +300,43 @@ def mil_bag_model():
     return keras.Model(inputs=[bag_input], outputs=[bag_level_output])
 
 #model_rgb = mil_bag_model()
+
+
+#--------------------------------------------------------#
+## TEST 
+def init_test_model(params,from_path=globo.WEIGHTS_PATH,pb=False):
+    ''' returns model with params config present in name over aux.WEIGHTS_PATH
+        or if from_path is aux.MODEL_PATH it will recreate model from folders
+    '''
+    
+    if from_path == str(globo.WEIGHTS_PATH):
+        model = form_model(params)
+    
+        find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
+        para_file_name, para_file_path = find_h5(from_path,find_string,ruii=False)
+        model_path = para_file_path[0]
+        model.load_weights(model_path)
+    
+        print("\n\tWEIGHTS from ", '/'+os.path.split(os.path.split(para_file_path[0])[0])[1]+'/'+os.path.split(para_file_path[0])[1])
+        
+        
+    elif from_path==str(globo.MODEL_PATH):
+        
+        find_string=[params["ativa"]+'_'+params["optima"]+'_'+str(params["batch_type"])+'_'+params["frame_max"]]
+        para_file_name, para_file_path = find_h5(from_path,find_string,ruii=False)
+        
+        if pb:
+            model_path = os.path.join(para_file_path[0].replace(".h5","") , "/saved_model.pb")
+            print(para_file_path[0].replace(".h5","") + "/saved_model.pb")
+            model = tf.keras.models.load_model(model_path)
+        else:
+            model_path = para_file_path[0].replace(".h5","")
+            model = tf.keras.models.load_model(model_path)
+        
+        print("\n\tMODEL from ", model_path)
+        model.summary()
+        
+    else:
+        raise Exception("give valid from_path")
+    
+    return model , para_file_name[0]

@@ -190,7 +190,9 @@ class DataGenOrigBatch(tf.keras.utils.Sequence):
     ## FOOD 4 TOUGHT
     ## https://github.com/MTG/essentia/issues/1268
 '''    
-    As the Essentia algorithms are not thread-safe, you should avoid using multithreading (e.g., ThreadPoolExecutor). Instead, you can use the concurrent.futures.ProcessPoolExecutor to provide process-based parallelization. This will ensure that each function call will be executed in a separate process, avoiding issues with thread safety.
+    As the Essentia algorithms are not thread-safe, you should avoid using multithreading (e.g., ThreadPoolExecutor). 
+    Instead, you can use the concurrent.futures.ProcessPoolExecutor to provide process-based parallelization. 
+    This will ensure that each function call will be executed in a separate process, avoiding issues with thread safety.
 
     Here's the updated snippet of your code with ProcessPoolExecutor:
     python
@@ -203,7 +205,9 @@ class DataGenOrigBatch(tf.keras.utils.Sequence):
     with ProcessPoolExecutor() as executor:
         executor.map(lambda i: self.call_get_sigmoid(i, p_es, self.vpath_list[start_idx:end_idx], sf_list, ef_list, True), range(current_batch_size))
 
-    However, using the ProcessPoolExecutor requires that the functions and their arguments are picklable. One solution is to modify your call_get_sigmoid function so that it returns the computed p_es value for each index i instead of modifying it in-place. You can then assign the results to the p_es array after collecting them from the executor.
+    However, using the ProcessPoolExecutor requires that the functions and their arguments are picklable. 
+    One solution is to modify your call_get_sigmoid function so that it returns the computed p_es value for each index i instead of modifying it in-place. 
+    You can then assign the results to the p_es array after collecting them from the executor.
 
     Here's the updated call_get_sigmoid function:
     python

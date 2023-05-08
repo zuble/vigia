@@ -1,6 +1,6 @@
 import os , numpy as np
 
-from utils import globo , sinet
+from utils import globo , sinet , sinet2
 
 CFG_SINET = {
     
@@ -30,7 +30,18 @@ CFG_SINET = {
 
 data = np.load(os.path.join(globo.AAS_PATH+"/2_sub_interval/",'dataset_from_xdvtest_bg_train_a_data.npy'), allow_pickle=True).item()
 
-sinett = sinet.Sinet(CFG_SINET)
+sinet_model, sinet_metadata = sinet2.create_sinet(CFG_SINET)
+
+
+def call_get_sigmoid(i,vpath, start_frame, end_frame, label, debug):
+    try:
+        print("\t call for ", i, os.path.basename(vpath), start_frame, end_frame)
+        result = i, sinet2.get_sigmoid(sinet_model, CFG_SINET, sinet_metadata, vpath, start_frame, end_frame, debug=debug) , label
+    except Exception as e:
+        print(f"Exception in call_get_sigmoid for index {i}: {e}")
+        result = i, None, label
+    return result
+    
 
 data_dict = {'train': [], 'valdt': [], 'test': []}
 for j in range(len(data_dict)):
@@ -46,16 +57,16 @@ for j in range(len(data_dict)):
         sf, ef = data[typee][i][1][:2]
         label = data[typee][i][1][2]
 
-        p_es_arr = sinett.get_sigmoid(vpath, sf, ef, debug=True)
-        
+        results = list(map(lambda i: call_get_sigmoid(0,vpath, sf, ef , label , True), range(1)))
+        #print(results)
         data_dict[typee].append({
             'vpath': vpath,
             'sf': sf,
             'ef': ef,
-            'p_es_array': p_es_arr,
+            'p_es_array': results[1],
             'label': label
         })
-        print("\ndata_dict\n",i,"\n",vpath,"\n",sf,ef,"\n",np.shape(p_es_arr),"\nlabel",label)
+        print("\ndata_dict\n",i,"\n",vpath,"\n",sf,ef,"\n",np.shape(results[1]),"\nlabel",label)
        
 
     print("\n\n***********************\n",len(data[typee]), len(data_dict[typee]))

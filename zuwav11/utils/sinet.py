@@ -3,6 +3,7 @@ import json , time, subprocess , os , sys
 import numpy as np
 
 import moviepy.editor as mp
+os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
 #import essentia 
 #print(essentia.__version__)
 #print(essentia.__file__)
@@ -21,10 +22,8 @@ class Sinet:
                             lastPatchMode=self.model_config["lastPatchMode"],
                             patchHopSize=self.model_config["patchHopSize"] )
         self.metadata = json.load(open(self.model_config['metadata_file'], "r"))
-        
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-        
-        print("\n\nSINET VERSION", self.model_config["sinet_version"] , "w",self.model_config['full_or_max'],"output")
+                
+        print("\n\nSINET VERSION", self.model_config["sinet_version"] ,"w",self.model_config['full_or_max'],"output")
         
         
     def print_acodec_from_mp4(self, data, printt=False, only_sr=False):
@@ -52,11 +51,13 @@ class Sinet:
         
         audio_es = mp.AudioFileClip(filename=vpath, fps=mp4_fs_aac)
         # cuts the video if sf / tf different than abnormal flag(normal video have lengthy duration)
-        if sf != 0 and ef != -1:
+        if sf == 0 and ef == -1: 
+            aud_arr = audio_es.to_soundarray()
+        else:
             st = sf / 24; et = ef / 24
             audio_es_cut = audio_es.subclip(t_start=st,t_end=et)
             aud_arr = audio_es_cut.to_soundarray()
-        else: aud_arr = audio_es.to_soundarray()
+            
         aud_arr_mono_single = np.mean(aud_arr, axis=1).astype(np.float32)
         aud_arr_essentia = resampler(aud_arr_mono_single)
 
@@ -68,7 +69,8 @@ class Sinet:
             tt2 = time.time()
             print(  "\n\n************** START sinet.get_sigmoid ***************",\
                     "\n\t",os.path.basename(vpath)," w/ ", mp4_fs_aac ,"hZ",\
-                    "\n\t",sf, ef,\
+                    "\n\t",sf , format(st, ".2f") ,\
+                    "\n\t",ef , format(et, ".2f") ,\
                     "\n\t MAX aas for anom labels 2")
             for i in range(len(self.model_config['anom_labels_i2'])):
                 label_i = self.model_config['anom_labels_i2'][i]
@@ -130,3 +132,5 @@ class Sinet:
                 print("interval",j,"@",np.shape(p_es_array[j]),frame_intervals[j][2])   
                  
         return p_es_array
+
+

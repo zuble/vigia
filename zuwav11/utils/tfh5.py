@@ -3,7 +3,7 @@ import os , logging , time
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from keras import layers
+from keras import layers , regularizers
 from tensorflow.keras.callbacks import ModelCheckpoint
 
 from concurrent.futures import ProcessPoolExecutor
@@ -227,34 +227,63 @@ def form_model_wav(params):
             layers.Conv1D(64, kernel_size=3, activation=ativa, name='conv1d_layer1'),
             layers.MaxPooling1D(pool_size=2, name='maxpool1d_layer1'),
             layers.Conv1D(128, kernel_size=3, activation=ativa, name="conv1d_layer2"),
-            layers.MaxPooling1D(pool_size=2, name='maxpool1d_layer2'),
-            layers.Flatten(name='flatten_layer'),
-            layers.Dense(128, activation=ativa, name='hidden_layer'),
+            #layers.BatchNormalization(),
+            #layers.Activation(ativa),
+            layers.GlobalMaxPooling1D(name='globalmaxpooling1d_layer'),
+            layers.Dropout(0.5),
+            layers.Dense(64, activation=ativa, name='hidden_layer'),
             layers.Dense(1, activation='sigmoid', name='output_layer')
         ])
                 
     elif params['arch'] == 'lstm' :
         model = tf.keras.Sequential([
             layers.Input(shape=(None,params["sinet_aas_len"]), name='input_layer'),
-            layers.LSTM(128, activation=ativa, return_sequences=True, name='lstm_layer'),
+            layers.LSTM(units = params["lstm_units"], activation=ativa, return_sequences=True, name='lstm_layer'),
             layers.GlobalMaxPooling1D(),
-            layers.Dense(64, activation=ativa, name='hidden_layer'),
+            #layers.Dense(128, activation=ativa, kernel_regularizer=regularizers.l1(0.01) , name='hidden_layer'),
+            #layers.Dropout(0.5),
+            layers.Dense(64, activation=ativa, name='hidden_layer2'),
             layers.Dense(1, activation='sigmoid', name='output_layer')
         ])
+        #model = tf.keras.Sequential([
+        #    layers.Input(shape=(None,params["sinet_aas_len"]), name='input_layer'),
+        #    # LSTM layer
+        #    layers.LSTM(units = params["lstm_units"], return_sequences=False , name='lstm_layer'),
+        #    layers.Dropout(0.5),  # Dropout after LSTM layer
+        #    # First Dense layer with L1 regularization
+        #    layers.Dense(64, activation='relu', kernel_regularizer=regularizers.l1(0.01)),
+        #    layers.Dropout(0.5),  # Dropout after first Dense layer
+        #    # Last Dense layer with sigmoid activation and L1 regularization
+        #    layers.Dense(1, activation='sigmoid', kernel_regularizer=regularizers.l1(0.01))
+        #])
 
     elif params['arch'] == 'topgurlmax':
         model = tf.keras.Sequential([
-            layers.Input(shape=(params["sinet_aas_len"],), name='input_layer'),
+            layers.Input(shape=(None,params["sinet_aas_len"]), name='input_layer'),
             #layers.Lambda(lambda x: tf.reduce_max(x, axis=1), name='max_pooling'), # = np.max(input , axis = 0)
-            layers.Dense(128, activation=ativa, name='hidden_layer1'),
-            layers.Dense(32, activation=ativa, name='hidden_layer2'),
+            #layers.Dense(128, activation=ativa, name='hidden_layer1'),
+            #layers.Dropout(0.5),
+            layers.GlobalMaxPooling1D(),
+            #layers.Dense(64, activation=ativa, name='hidden_layer2'),
+            #layers.Dropout(0.5),
+            layers.Dense(32, activation=ativa, name='hidden_layer3'),
             layers.Dense(1, activation='sigmoid', name='output_layer')
         ])
     
     #https://www.tensorflow.org/api_docs/python/tf/keras/optimizers
-    if params["optima"]=='sgd':optima = keras.optimizers.SGD(learning_rate = params["lr"])
+    if params["optima"]=='sgd':
+        if params["lr_agenda"]:
+            lr = tf.keras.optimizers.schedules.ExponentialDecay(
+                params["lr"],
+                decay_steps=1000,
+                decay_rate=0.9,
+                staircase=True
+            )
+        else: lr = params["lr"]
+        optima = keras.optimizers.SGD(learning_rate = lr)
     elif params["optima"]=='adam':optima = keras.optimizers.Adam(learning_rate = params["lr"])
     elif params["optima"]=='adamamsgrad':optima = keras.optimizers.Adam(learning_rate = params["lr"],amsgrad=True)
+    elif params["optima"]=='nadam':optima = keras.optimizers.Nadam(learning_rate = params["lr"])
     else: raise Exception("no optima named assim")
 
     METRICS = [
@@ -275,31 +304,42 @@ def form_model_wav(params):
                 )
     model.summary()    
     
-    print("\n\t",params,"\n\n\tOPTIMA",optima,"\n\tATIVA",ativa)
-
+    ## MODEL NAME
     time_str = str(time.time()); 
-    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'-'+str(params["lr"])+'_'+str(params["arch"])
-    print("\n\t",model_name)
+    if params["arch"] == 'lstm' : params["arch"] = 'lstm' + str(params["lstm_units"])
+    if params["optima"]=='sgd' and params["lr_agenda"]: params["lr"] = str(params["lr"])+'A'
+    model_name = time_str + '_'+params["ativa"]+'_'+params["optima"]+'-'+str(params["lr"])+'_'+str(params["arch"]+'_'+str(params["sinet_fi"])+'-'+str(params["sinet_fi_iter"])+'_'+str(params["batch_size"])+'bs')
+   
+    print(  "\n\tCFG_WAV\n\t   ","\n\t  ".join(f"{key}: {value}" for key, value in params.items()),\
+            "\n\n\tOPTIMA",optima,"with lr=",params["lr"],\
+            "\n\tATIVA",ativa,\
+            "\n\n\tMODEL NAME\n\t",model_name)
+
     return model , model_name
 
 
 #--------------------------------------------------------#
 ## CALLBACKS
 
-def ckpt_clbk(model_name , save_best = False):
+def ckpt_clbk(model_name , monitor , save_best = False):
     #https://keras.io/api/callbacks/model_checkpoint/
     p = os.path.join(globo.CKPT_PATH,model_name)
     if not os.path.exists(p):
         os.makedirs(p)
     else:raise Exception(f"{p} eristes")
     
-    return ModelCheckpoint( filepath=p+'/'+model_name+'_ckpt-{epoch:02d}-{loss:.2f}.h5' , \
-                            monitor='loss',\
+    print("\n\n\tCKPT_CLBK saving at",p)
+    ckpts=[]
+    for i,metric in enumerate(monitor):
+        print('\t  ckpt callback monotoring',metric)
+        ckpts.append ( ModelCheckpoint( filepath=p+'/'+model_name+'_'+metric+'_ckpt-{epoch:02d}-{loss:.2f}-{val_loss:.2f}.h5' , \
+                            monitor=metric,\
                             save_weights_only=True,\
                             save_best_only=save_best,\
                             mode='auto',\
                             save_freq='epoch',\
-                            verbose = 1)
+                            verbose = 1) )
+    return  ckpts
         
 
 #--------------------------------------------------------#

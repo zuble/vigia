@@ -6,12 +6,17 @@
 
 */.neptune/
 */aas
+*/auxer
+*/.pretrained
 
+
+*.h5
 *.out
 *.code-workspace
 
 .aux/
 .env/
+.dev/
 .contentor/
 .vscode/
 dog-cat/

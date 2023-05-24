@@ -1,0 +1,86 @@
+{
+    "name": "UrbanSound8K",
+    "type": "classifier for urban sounds",
+    "link": "https://essentia.upf.edu/models/classifiers/urbansound8k/urbansound8k-musicnn-msd-1.pb",
+    "version": "1",
+    "description": "classification of sound by the UrbanSound8K classes",
+    "author": "Pablo Alonso",
+    "email": "pablo.alonso@upf.edu",
+    "release_date": "2021-06-24",
+    "framework": "tensorflow",
+    "framework_version": "1.15.0",
+    "classes": [
+        "air conditioner",
+        "car horn",
+        "children playing",
+        "dog bark",
+        "drilling",
+        "enginge idling",
+        "gun shot",
+        "jackhammer",
+        "siren",
+        "street music"
+    ],
+    "model_types": [
+        "frozen_model"
+    ],
+    "dataset": {
+        "name": "UrbanSound8k",
+        "link": "https://urbansounddataset.weebly.com/urbansound8k.html",
+        "size": "8732",
+        "metrics": {
+            "5-fold_cross_validation_normalized_accuracy": 0.81
+        }
+    },
+    "schema": {
+        "inputs": [
+            {
+                "name": "model/Placeholder",
+                "type": "float",
+                "shape": [
+                    187,
+                    96
+                ]
+            }
+        ],
+        "outputs": [
+            {
+                "name": "model/Softmax",
+                "type": "float",
+                "shape": [
+                    1,
+                    10
+                ],
+                "op": "Softmax",
+                "output_purpose": "predictions"
+            },
+            {
+                "name": "model/dense_1/BiasAdd",
+                "type": "float",
+                "shape": [
+                    1,
+                    10
+                ],
+                "op": "fully connected",
+                "description": "logits",
+                "output_purpose": ""
+            },
+            {
+                "name": "model/dense/BiasAdd",
+                "type": "float",
+                "shape": [
+                    1,
+                    100
+                ],
+                "op": "fully connected",
+                "description": "penultimate layer",
+                "output_purpose": ""
+            }
+        ]
+    },
+    "citation": "@article{alonso2020deep,\ntitle={Deep embeddings with Essentia models},\nauthor={Alonso-Jim{\\'e}nez, Pablo and Bogdanov, Dmitry and Serra, Xavier},\nbooktitle={International Society for Music Information Retrieval Conference (ISMIR'20) Late-Braeking/Demo},\nyear={2020}\n}",
+    "inference": {
+        "sample_rate": 16000,
+        "algorithm": "TensorflowPredictMusiCNN"
+    }
+}

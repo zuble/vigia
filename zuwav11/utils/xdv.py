@@ -1,4 +1,4 @@
-import os, cv2, subprocess, random, numpy as np
+import os, cv2, subprocess, random, glob, numpy as np
 
 from sklearn.model_selection import train_test_split
 
@@ -104,12 +104,15 @@ def train_valdt_from_npy():
 ## WHICH HAVE FRAME LEVEL LABEL ANNOTATIONS 
 ## AS FRAME INTERVALS OF LABEL 1
 
-#############
+###############################
 ## APPROACH 1 
 # from test BG created label 0 and 1
 # label 1 -> annoted intervals if they are relevant ( > 4sec*24fps)
 # label 0 -> outer regions of annoted intervals if they are relevant
 
+
+## creates the information about dataset 
+## '/raid/DATASETS/anomaly/XD_Violence/testing_copy/v=38GQ9L2meyE__#1_label_B6-0-0.mp4', [(26, 80, 1), (81, 209, 0), (210, 973, 1)]
 def create_train_valdt_test_from_xdvtest_bg():
     
     import moviepy.editor as mp
@@ -204,11 +207,12 @@ def create_train_valdt_test_from_xdvtest_bg():
         "valdt" : val_data , 
         "test" : test_data
     }
-    np.save(os.path.join(globo.SERVER_TEST_COPY_PATH,'npy/dataset_from_xdvtest_bg_data.npy'), data_dict)
+    np.save(os.path.join(globo.AAS_PATH,'1_full_interval/dataset_from_xdvtest_bg_data.npy'), data_dict)
     
-## just loads it
+    
+## loads the information to create dataset of type: vpath, [(sf , ef , label),....]
 def train_valdt_test_from_xdvtest_bg_from_npy(printt=False):
-    data = np.load(os.path.join(globo.SERVER_TEST_COPY_PATH,'npy/dataset_from_xdvtest_bg_data.npy'), allow_pickle=True).item()
+    data = np.load(os.path.join(globo.AAS_PATH,'1_full_interval/dataset_from_xdvtest_bg_data.npy'), allow_pickle=True).item()
     
     ## checks if all anomalous videos in xdv test are present either in train or valdt or test
     for root, dirs, files in os.walk(globo.SERVER_TEST_COPY_PATH):
@@ -267,18 +271,21 @@ def train_valdt_test_from_xdvtest_bg_from_npy(printt=False):
             sorted_interval_counts = {k: v for k, v in sorted(interval_counts.items())}
             print("\nInterval counts:", sorted_interval_counts)
             
-    
+
     return data 
 
+## dataset created with aas0.py
 
-#############
+
+##############################
 ## APPROACH 2
 # from test BG created label 1 | from train A created label 0
 # label 1 -> sub divided all original frame interval annotations into chuck_fsize 
 # label 0 -> iterates over all videos until i got the same frame_intervals as label 1
 #            and for each video got a random number of frame_intervals between 2 and 4)
-def get_frame_intervals_chuncked_from_test_bg(chunck_fsize = 4 * 24, debug=False):
-    print("\n***********TEST\n\nget_frame_intervals_chuncked_from_test_bg\n\n")
+
+def get_frame_intervals_chuncked_from_test_bg(chunck_fsize , debug=False):
+    print("\n***********label 1 / BG\n\nget_frame_intervals_chuncked_from_test_bg\n\nCHUNCK_FSIZE",chunck_fsize,"\n\n")
     def create_sub_intervals(start_frame, end_frame, label=1 , ):
         frame_count = end_frame - start_frame
         
@@ -348,9 +355,8 @@ def get_frame_intervals_chuncked_from_test_bg(chunck_fsize = 4 * 24, debug=False
     print("total intervals",interval_count)
     return frame_intervals , time_intervals , interval_count
 
-
-def get_frame_intervals_chuncked_from_train_a(total_intervals,chunck_fsize = 4 * 24, debug=False):
-    print("\n***********\nTRAIN\n\nget_frame_intervals_chuncked_from_train_a\n\n")
+def get_frame_intervals_chuncked_from_train_a(total_intervals,chunck_fsize , debug=False):
+    print("\n***********\nlabel 0 / A\n\nget_frame_intervals_chuncked_from_train_a\n\nCHUNCK_FSIZE",chunck_fsize,"\n\n")
     ## from a video paths get num_intervals with chunck_fsize
     def get_random_fixed_intervals(video_path, num_intervals):
         cap = cv2.VideoCapture(video_path)
@@ -360,7 +366,7 @@ def get_frame_intervals_chuncked_from_train_a(total_intervals,chunck_fsize = 4 *
             return None
         
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        assert( int(cap.get(cv2.CAP_PROP_FPS)) , 24)
+        assert int(cap.get(cv2.CAP_PROP_FPS)) == 24
         
         if total_frames < chunck_fsize:
             print(f"Error: Video {video_path} has fewer frames than the fixed interval size.")
@@ -425,10 +431,10 @@ def get_frame_intervals_chuncked_from_train_a(total_intervals,chunck_fsize = 4 *
 
 
 #DATA = xdv.create_train_valdt_test_from_xdvtest_bg_train_a(True)
-def create_train_valdt_test_from_xdvtest_bg_train_a(debug=False):
-    
-    bg_frame_intervals , bg_time_intervals , n_bg_intervals = get_frame_intervals_chuncked_from_test_bg(debug=debug)
-    a_frame_intervals , n_a_intervals = get_frame_intervals_chuncked_from_train_a(n_bg_intervals,debug=debug)
+def create_train_valdt_test_from_xdvtest_bg_train_a(chunck_fsize = 4*24 , debug=False):
+
+    bg_frame_intervals , bg_time_intervals , n_bg_intervals = get_frame_intervals_chuncked_from_test_bg(chunck_fsize , debug)
+    a_frame_intervals , n_a_intervals = get_frame_intervals_chuncked_from_train_a(n_bg_intervals,chunck_fsize,debug)
     print("\n\neg bg:",bg_frame_intervals[0] ,\
         "\neg a:",a_frame_intervals[0])
     
@@ -439,7 +445,7 @@ def create_train_valdt_test_from_xdvtest_bg_train_a(debug=False):
     print("\n\nMERGED data intervals",data[0],"\n",np.shape(data)[0],"=",n_a_intervals+n_bg_intervals,"(",n_a_intervals,"+",n_bg_intervals,")")
     print("NORMAL intervals", sum(1 for _, (_, _, label) in data if label == 0))
     print("ABNORMAL intervals", sum(1 for _, (_, _, label) in data if label == 1))
-    assert(np.shape(data)[0],n_a_intervals+n_bg_intervals)
+    assert np.shape(data)[0] == n_a_intervals+n_bg_intervals
     
     from sklearn.model_selection import train_test_split
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
@@ -461,8 +467,21 @@ def create_train_valdt_test_from_xdvtest_bg_train_a(debug=False):
         "valdt" : val_data , 
         "test" : test_data
     }
-    np.save(os.path.join(globo.SERVER_TEST_COPY_PATH,'npy/dataset_from_xdvtest_bg_train_a_data.npy'), data_dict)
-    #return data_dict
+    npz_path = os.path.join(globo.AAS_PATH+"/2_sub_interval/temp",f"dataset_from_xdvtest_bg_train_a_data-{chunck_fsize}fi.npy")
+    np.save( npz_path , data_dict)
+    return npz_path
+
+
+def load_train_valdt_test_from_xdvtest_bg_train_a(mode , iteration):
+    print("\n\tmode",mode,"fi",globo.CFG_SINET['chunck_fsize'],"iter",iteration,"\n")
+    
+    path = globo.AAS_PATH+"/2_sub_interval/"+str(globo.CFG_SINET['chunck_fsize'])+"/"+str(iteration)+"/*{}*.npz".format(mode)
+    npz_path = glob.glob(path)[0] 
+    if not os.path.exists(npz_path): raise Exception("npz no existe:", npz_path) 
+    
+    data = np.load(npz_path, allow_pickle=True)["data"]
+    print("\n\n",mode,"DATA LOADED FROM",npz_path,"\n\n")
+    return data
 
 
 #####
@@ -528,6 +547,42 @@ def get_testxdvanom_info():
 
     print("Mean of dif_aux values:", mean_dif_aux)
     print("Median of dif_aux values:", median_dif_aux)
+
+
+def get_index_per_label_from_filelist(file_list):
+    '''retrives video indexs per label and all from file list xdv'''
+        
+    print("\n  get_index_per_label_from_list\n")
+    
+    labels_indexs={'A':[],'B1':[],'B2':[],'B4':[],'B5':[],'B6':[],'G':[],'BG':[]}
+    
+    # to get frist label only add _ to all : if 'B1' 'B2' ...
+    for video_j in range(len(file_list)):
+        
+        label_strap = os.path.splitext(os.path.basename(file_list[video_j]))[0].split('label')[1]
+        #print(os.path.basename(file_list[video_j]),label_strap)
+        
+        if 'A' in label_strap: labels_indexs['A'].append(video_j)
+        else:
+            labels_indexs['BG'].append(video_j)
+            if 'B1' in label_strap : labels_indexs['B1'].append(video_j)
+            if 'B2' in label_strap : labels_indexs['B2'].append(video_j)
+            if 'B4' in label_strap : labels_indexs['B4'].append(video_j)
+            if 'B5' in label_strap : labels_indexs['B5'].append(video_j)
+            if 'B6' in label_strap : labels_indexs['B6'].append(video_j)
+            if 'G'  in label_strap : labels_indexs['G'].append(video_j)
+    
+    print(  '\tA NORMAL',               len(labels_indexs['A']),\
+            '\n\n\tB1 FIGHT',           len(labels_indexs['B1']),\
+            '\n\tB2 SHOOT',             len(labels_indexs['B2']),\
+            '\n\tB4 RIOT',              len(labels_indexs['B4']),\
+            '\n\tB5 ABUSE',             len(labels_indexs['B5']),\
+            '\n\tB6 CARACC',            len(labels_indexs['B6']),\
+            '\n\tG EXPLOS',             len(labels_indexs['G']),\
+            '\n\n\tBG ALL ANOMALIES',   len(labels_indexs['BG']))
+    
+    return labels_indexs
+
 
 ## ***************************************** ##
 

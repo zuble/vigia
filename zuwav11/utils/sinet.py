@@ -1,9 +1,8 @@
-import json , time, subprocess , os , sys
+import json , time, subprocess , os 
 
 import numpy as np
 
 import moviepy.editor as mp
-os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
 #import essentia 
 #print(essentia.__version__)
 #print(essentia.__file__)
@@ -67,7 +66,7 @@ class Sinet:
         audio_es.close() 
         if debug: 
             tt2 = time.time()
-            print(  "\n\n************** START sinet.get_sigmoid ***************",\
+            print(  "\n************** START sinet.get_sigmoid ***************",\
                     "\n\t",os.path.basename(vpath)," w/ ", mp4_fs_aac ,"hZ",\
                     "\n\t",sf , format(st, ".2f") ,\
                     "\n\t",ef , format(et, ".2f") ,\
@@ -132,5 +131,6 @@ class Sinet:
                 print("interval",j,"@",np.shape(p_es_array[j]),frame_intervals[j][2])   
                  
         return p_es_array
+
 
 

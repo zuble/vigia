@@ -1,45 +1,107 @@
-    ## real GERADOR
-    train_generator = DataGen(train_fp, train_labl, train_config, 'train')
-    valdt_generator = DataGen(valdt_fp, valdt_labl, train_config, 'valdt')
-    
-    
-    ## TF.DATA FROM GENERATOR
-    '''def data_gen_wrapper(data_gen):
-        for i in range(len(data_gen)):
-            yield data_gen[i]
+    def skip_frames(self,cap,fs):
+        start_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
+        #print("skip_start",start_frame)
+        while True:
+            success = cap.grab()
+            curr_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
+
+            if not success or curr_frame - start_frame >= fs:break
         
-    output_types = (tf.float32, tf.float32)
-    output_shapes = (
-        tf.TensorShape((None , None , train_config["in_height"], train_config["in_width"], 3)),
-        tf.TensorShape((None,))
-    )
-    train_dataset = tf.data.Dataset.from_generator(
-        lambda: data_gen_wrapper(train_generator),
-        output_types=output_types,
-        output_shapes=output_shapes
-    )
-    valdt_dataset = tf.data.Dataset.from_generator(
-        lambda: data_gen_wrapper(valdt_generator),
-        output_types=output_types,
-        output_shapes=output_shapes
-    )'''
-    
-    
-    ''' MODEL '''
-    ## SINGLE
-    model,model_name = tfh5.form_model(train_config)
-    
-    
-    ''' FIT '''
-    history = model.fit(train_generator, 
-                        epochs = train_config["epochs"] ,
-                        steps_per_epoch = len(train_fp) * 2,
-                        
-                        verbose=2,
-                        
-                        validation_data = valdt_generator ,
-                        validation_steps = len(valdt_fp),
-                        
-                        use_multiprocessing = True , 
-                        #workers = 8 ,
-                    )
+        if not success:return success, None, start_frame + fs
+
+        success, image = cap.retrieve()
+        return success, image, curr_frame        
+
+    def __len__(self):
+        if self.debug: print("\n\n__len__",self.mode,"= n batchs = ",self.lleenn, " w/ '1' vid_frames each")
+        return self.lleenn
+        
+        
+    def __getitem__(self, idx):
+        ## idx 0 - flipp False - vpath[0] 
+        ## idx 1 - flipp True - vpath[0] 
+        ## idx 3 - flipp False - vpath[1] ..
+        
+        ## flipp flag
+        if self.train and self.augment: 
+            i = idx // 2 ; flipp = idx % 2 == 1
+        else: i = idx; flipp = False
+        
+        
+        vpath = self.vpath_list[i]
+        label = self.label_list[i]
+        if not label:label_str=str('NORMAL')
+        else:label_str=str('ABNORMAL')
+        
+
+        ## tries to open video , if not attempts 3 times w/ delay
+        vc_attmp = 0 ; max_attmp = 3 ; delay = 4 ; video_opened = False
+        while vc_attmp < max_attmp and not video_opened:
+            video = cv2.VideoCapture(vpath)
+            video_opened = video.isOpened()
+            if not video_opened:
+                vc_attmp += 1
+                print(f"\nAttempt {vc_attmp}: Failed to open video: {vpath}")
+                time.sleep(delay)
+                continue
+        ## after failed 3 times, return zeros 
+        if not video_opened:
+            print(f"\nSkipping video: {vpath}")
+            return  np.expand_dims(np.zeros((self.maxpool3_min_tframes, self.in_height, self.in_width, 3), dtype=np.float32) , 0) ,\
+                    np.expand_dims(np.array(label, dtype=np.float32) , 0)
+        
+       
+        ## Check if the video has enough frames so shape isnt -1
+        tframes = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        if tframes >= self.maxpool3_min_tframes:
+            
+            if tframes > self.frame_max:
+                if label == 0 :
+                    vid_start_idx = random.randint(0, tframes - self.frame_max)
+                    vid_end_idx = vid_start_idx + self.frame_max
+                    video.set(cv2.CAP_PROP_POS_FRAMES, vid_start_idx)
+                elif label == 1 :
+                    vid_start_idx = 0 ; vid_end_idx = self.frame_max
+            else: 
+                vid_start_idx = 0 ; vid_end_idx = tframes
+            
+            frame_step = self.frame_step
+            
+        else: vid_start_idx = 0 ; vid_end_idx = tframes ; frame_step = 1
+        
+        
+        frames = []
+        curr_frame = 0
+        success, frame = video.read()
+        for j in range(vid_end_idx - vid_start_idx):
+            
+            if not success or curr_frame > vid_end_idx: 
+                #if self.debug: print(f"Frame read failed at idx: {j}, curr_frame: {curr_frame}, vid_end_idx: {vid_end_idx}")
+                break
+            
+            frame_bgr = cv2.resize(frame, (self.in_width, self.in_height))
+            frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+            frame_arr = self.prep_fx(np.array(frame_rgb))
+            frames.append(frame_arr)
+            
+            ## jumps the next frame wo decoding
+            success, frame, curr_frame = self.skip_frames(video,frame_step)
+            #if self.debug: print(f"Frame read successful at idx: {j}, curr_frame: {curr_frame}, success: {success}")
+            
+            
+        frames_arr = np.array(frames)
+        
+        #self.showfr(frames_arr)
+        if flipp:frames_arr = np.flip(frames_arr, axis=2)
+        #self.showfr(frames_arr)
+        
+        
+        #batch_frames , batch_labels = [] , [] 
+        #batch_frames.append(frames_arr)
+        #batch_labels.append(label)
+        #X = np.array(batch_frames).astype(np.float32)
+        #y = np.array(batch_labels).astype(np.float32) 
+        
+        
+        X = np.expand_dims(np.array(frames_arr).astype(np.float32), 0)
+        y = np.expand_dims(np.array(label).astype(np.float32), 0)

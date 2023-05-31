@@ -82,7 +82,8 @@ class RankingLoss(tf.keras.losses.Loss):
             ## each batch is ( 2 * bs , 32 , 1)
             ## frist bs of 32 scores are normal , second is abnormal
             for i in range(batch_size):
-            
+                #print(f'i: {i}, batch_size: {batch_size}, scores.shape: {scores.shape}')
+
                 normal_index = tf.random.shuffle(tf.range(self.nsegments))
                 y_normal  = tf.gather(scores[i], normal_index)
                 y_normal_max = tf.reduce_max(y_normal)

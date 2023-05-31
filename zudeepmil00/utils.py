@@ -2,7 +2,9 @@ import globo
 import numpy as np
 
 def segment_feat(feat, length = globo.NSEGMENTS):
-
+    """
+        segments (ts,features) into (length,features)
+    """
     new_feat = np.zeros((length, feat.shape[1])).astype(np.float32)
     r = np.linspace(0, len(feat), length+1, dtype=np.int)
     for i in range(length):
@@ -13,9 +15,10 @@ def segment_feat(feat, length = globo.NSEGMENTS):
     return new_feat
 
 
-
 def segment_feat_crop(feat, length = globo.NSEGMENTS):
-
+    """
+        segments (ncrops,ts,features) into (ncrops,length,features)
+    """
     #print(feat.shape) 
     divided_features = []        
     for f in feat: 
@@ -32,7 +35,9 @@ def segment_feat_crop(feat, length = globo.NSEGMENTS):
     divided_features = np.array(divided_features, dtype=np.float32)
     return divided_features
 
+
 ####################################################
+
 
 ## DeepMIL
 def transform_into_segments_deepmil(feat, length):

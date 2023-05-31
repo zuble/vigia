@@ -44,7 +44,9 @@ def reshape_out(x,bs,ncrops):
 
 
 ## with generator
-def train_gen(model, normal_loader, abnormal_loader, num_iterations, optimizer, loss_obj):
+def train_gen(model, normal_loader, abnormal_loader, num_iterations, optimizer, loss_obj, ncrops):
+    ''' if features are divided in ncrops 
+        the input data need to be reshaped into ( bs * ncrops , ts , features) before feed to model '''
     
     losses = []
     for i, (normal_in, abnormal_in) in enumerate(zip(normal_loader, abnormal_loader)):
@@ -52,11 +54,11 @@ def train_gen(model, normal_loader, abnormal_loader, num_iterations, optimizer, 
         if i >= num_iterations: break
 
         data_in = tf.concat((normal_in, abnormal_in), axis=0)
-        data_in , bs , ncrops = reshape_in(data_in)
+        if ncrops: data_in , bs , ncrops = reshape_in(data_in)
         
         with tf.GradientTape() as tape:
             scores = model(data_in)
-            scores = reshape_out(scores, bs , ncrops)
+            if ncrops: scores = reshape_out(scores, bs , ncrops)
             loss = loss_obj(tf.zeros_like(scores), scores)
 
         gradients = tape.gradient(loss, model.trainable_variables)

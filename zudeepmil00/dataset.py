@@ -1,75 +1,45 @@
-import globo
-import numpy as np , os , tensorflow as tf
+import globo , os
+import numpy as np , tensorflow as tf
 from utils import *
 
-class Dataset:
-    def __init__(   self, is_normal=True , is_test = False , \
-                    inject = False , ):
-        
-        self.features = globo.ARGS.features
+
+class Dataset(tf.keras.utils.Sequence):
+
+    def __init__(self, args , is_normal: bool, is_test: bool, debug: bool = False):
+        self.args = args
+
         self.is_normal = is_normal
         self.is_test = is_test
-        self.inject = inject
-        self.debug = globo.ARGS.debug
-        dummy = globo.ARGS.dummy
-        
-        ## defines lists to load features
-        if   self.features == 'i3ddeepmil' : flists = globo.UCFCRIME_I3DDEEPMIL_LISTS
-        elif self.features == 'i3drtfm': flists = globo.UCFCRIME_I3DRTFM_LISTS
-        elif self.features == 'c3d' : flists = globo.UCFCRIME_C3DRAW_LISTS
-        
-        
-        ## test done without 32-segmentation of features
-        ## only working with deepmil features atm
-        if self.is_test:
-            
-            self.segments32 = False
-            
-            if self.is_normal :
-                self.list_file = flists["test"]
-                self.list = list(open(self.list_file))[140:]
-                print("test normal list",self.list_file,np.shape(self.list) , self.list[0])
-            else:
-                self.list_file = flists["test"]
-                self.list = list(open(self.list_file))[:140]
-                print("test abnormal list",self.list_file,np.shape(self.list) , self.list[138])
-    
-        ## train done with 32-segmentation of features
-        else :
-            self.segments32 = True
-                
-            if self.is_normal:
-                self.list_file = flists["train_normal"]
-                self.list = list(open(self.list_file))
-                print("normal list",self.list_file,np.shape(self.list))
-        
-            else:
-                self.list_file = flists["train_abnormal"]
-                self.list = list(open(self.list_file))
-                print("abnormal list",self.list_file,np.shape(self.list))
-        
-        
-        if dummy: 
-            self.list = self.list[:dummy]
-            print("dummy",np.shape(self.list))
+        self.debug = debug
 
-        if self.inject: 
-            self.data = []
-            self.__load_full() 
-    
-    
-    ## theres tf l2norm , test the two
-    def l2norm(self,x):
-        return x/np.linalg.norm(x, ord=2, axis=-1, keepdims=True)
-         
+        flists = globo.FEATURE_LISTS[self.args.features]
+
+        if is_test: 
+            self.list_file = flists["test"]
+            self.segments32 = False
+            self.list = list(open(self.list_file))
+            self.list = self.list[140:] if is_normal else self.list[:140]
+        else: 
+            self.list_file = flists["train_normal"] if is_normal else flists["train_abnormal"]
+            self.segments32 = True
+            self.list = list(open(self.list_file))
             
-    def __load_file(self,index):
+            
+        print("LIST_FILE",self.list_file , np.shape(self.list))
         
+        
+        if args.dummy: self.list = self.list[:args.dummy]
+
+
+    def l2norm(self, x): return x / np.linalg.norm(x, ord=2, axis=-1, keepdims=True)
+
+
+    def __load_file(self, index):
         fpath = self.list[index]
         base_fn = os.path.splitext(os.path.basename(fpath))[0]
         
 
-        if self.features == 'i3ddeepmil':
+        if self.args.features == 'i3ddeepmil':
             '''
                 each .npy in list is the basename for the 10 crops video features
                 divide this to either interpolate each crop separality , all together
@@ -99,8 +69,9 @@ class Dataset:
                 #feature_crop10 = self.l2norm(feature_crop10)
                 
                 features.append(feature_crop10)
+             
                 
-        elif self.features == 'i3drtfm':
+        elif self.args.features == 'i3drtfm':
             '''
                 each .npy in list have all 10crop (t,ncrops,features)
                 they are not l2norm , but performed better wo (mil-bert)
@@ -113,47 +84,82 @@ class Dataset:
             if self.debug: print(f'\t{fpath} {np.shape(features)} {features.dtype}')
             
             
+        elif self.args.features == 'c3d':
+            fpath = fpath.strip('\n')
+            features = np.load(fpath)
+            
+            if self.debug: print(f'\t{fpath} {np.shape(features)} {features.dtype}')
+
+
         if self.segments32: #=train
             
             ## l2norm ncrops features
             #features = self.l2norm(np.asarray(features))
             
-            ## interpolate all ncrops features at once
-            features = segment_feat_crop(np.asarray(features) ) ## (10 , 32 , 2048)
-            
+            if self.args.features == ('c3d' or 'i3d'):
+                features = segment_feat(np.asarray(features) )
+            else: ## interpolate all ncrops features at once
+                features = segment_feat_crop(np.asarray(features) ) ## (10 , 32 , 2048)
+           
             ## l2norm ncrop divided features
             #features = self.l2norm(features)
         
         print(f'Loading {index} {base_fn}  {np.shape(features)}')
-        
         return features
 
 
-    def __load_full(self):
-        for index , fpath in enumerate(self.list):
-            video_features = self.__load_file(index)
-            self.data.append(video_features)
-            
-          
     def __getitem__(self, index):
-        
-        if self.inject:
-            features = self.data[index]
-            print(f'\n{index} {np.shape(features)} ')
-        
-        else:
-            print(f'\nData __get_item__ {index}')
-            features = self.__load_file(index)
-            
-        return features
-
+        return self.__load_file(index)
 
     def __len__(self):
         return len(self.list)
 
 
 
-def get_tfdataset(is_train = True):
+def get_tfslices(train = True):
+
+    def create_tf_dataset(dataset: Dataset, batch_size: int = None):
+        tf_dataset = tf.data.Dataset.from_tensor_slices(dataset)
+        if batch_size: tf_dataset = tf_dataset.batch(batch_size)
+        return tf_dataset
+
+    if train:
+        normal_dataset = Dataset(globo.ARGS, is_normal=True, is_test=False)
+        abnormal_dataset = Dataset(globo.ARGS, is_normal=False, is_test=False)
+
+        normal_tf_dataset = create_tf_dataset(normal_dataset, globo.ARGS.batch_size)
+        abnormal_tf_dataset = create_tf_dataset(abnormal_dataset, globo.ARGS.batch_size)
+
+        num_iterations = len(normal_dataset) + len(abnormal_dataset)
+        print(f'num_iterations {num_iterations}')
+
+        return normal_tf_dataset , abnormal_tf_dataset , num_iterations
+    
+    else: ## test no need to construct generator
+
+        normal_dataset = Dataset(globo.ARGS, is_normal=True, is_test=True)
+        abnormal_dataset = Dataset(globo.ARGS, is_normal=False, is_test=True)
+    
+        num_iterations = len(normal_dataset) + len(abnormal_dataset)
+        print(len(normal_dataset), len(abnormal_dataset))
+        print(f'num_iterations {num_iterations}')
+
+        return normal_dataset , abnormal_dataset , num_iterations
+
+
+if __name__ == "__main__":
+
+    normal_tf_dataset , abnormal_tf_dataset , num_iterations = get_tfslices(False)
+    #normal_tf_dataset , abnormal_tf_dataset , num_iterations = get_tfslices()
+
+    for normal_in in normal_tf_dataset:
+        print(np.shape(normal_in))
+        break
+
+
+
+'''
+def get_tfgen(is_train = True ):
     
     def dataset_generator_wrapper(dataset_instance):
             for idx in range(len(dataset_instance)):
@@ -161,11 +167,12 @@ def get_tfdataset(is_train = True):
                 
     if is_train:
         
-        normal_dataset = Dataset()
-        abnormal_dataset = Dataset(is_normal = False)
+        normal_dataset = Dataset(globo.ARGS, is_normal=True, is_test=False)
+        abnormal_dataset = Dataset(globo.ARGS, is_normal=False, is_test=False)
         
         output_types = tf.float32
-        output_shapes = tf.TensorShape([globo.NCROPS , globo.NSEGMENTS , globo.NFEATURES])
+        if globo.ARGS.features == 'c3d' : output_shapes = tf.TensorShape([ globo.NSEGMENTS , globo.NFEATURES])
+        else: output_shapes = tf.TensorShape([globo.NCROPS , globo.NSEGMENTS , globo.NFEATURES])
         normal_tf_dataset = tf.data.Dataset.from_generator(
             dataset_generator_wrapper,
             output_types=output_types, output_shapes=output_shapes,
@@ -184,6 +191,7 @@ def get_tfdataset(is_train = True):
         
         return normal_tf_dataset , abnormal_tf_dataset , num_iterations
     
+
     else: ## test no need to construct generator
 
         normal_dataset = Dataset(is_test=True)
@@ -194,8 +202,7 @@ def get_tfdataset(is_train = True):
         print(f'num_iterations {num_iterations}')
 
         return normal_dataset , abnormal_dataset , num_iterations
-    
-    
+'''
 
 ## how mil bert return features of RTFM @ MIL-BERT dataset.py
 '''
@@ -229,19 +236,3 @@ def get_item_UCF_Crime_RTFM(idx):
     #print(features.shape) 
     return features 
 '''
-
-      
-if __name__ == "__main__":
-    ## train normal
-    #dd = Dataset(debug = True)
-    #dd0 = dd.__getitem__(2)
-    
-    ## test abnormal
-    #ee = Dataset(features ='i3d_deepmil' , is_normal=False , is_test=True)
-    #ee0 = ee.__getitem__(2)
-    
-    normal_tf_dataset , abnormal_tf_dataset , num_iterations = get_tfdataset()
-
-    for normal_in in normal_tf_dataset:
-        print(np.shape(normal_in))
-        break

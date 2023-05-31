@@ -48,26 +48,27 @@ def reshape_out(x,bs,ncrops):
     return x
 
 
-def test_multicrop(model , normal_tfdata , abnormal_tfdata ):
+def test(model , normal_tfdata , abnormal_tfdata , ncrops):
     
     ## gt is in frame level , frist abormal then normal
-    gt_all = np.load(globo.UCFCRIME_GT)
+    gt_all = np.load(globo.UCFCRIME_GT16_ALL)
     total_frames = np.shape(gt_all)[0]
     
     scores_all = []
     frame_cnt = 0
     for i, data in enumerate(abnormal_tfdata):
         
-        data = tf.expand_dims(data , 0) ## (1, ncrops , ts , 1024)
-        data , bs , ncrops = reshape_in(data)
+        data = tf.expand_dims(data , 0) ## (1, ncrops , ts , feats)
+        if ncrops : data , bs , ncrops = reshape_in(data)
         scores = model(data)
-        scores = reshape_out(scores, bs , ncrops)
+        if ncrops : scores = reshape_out(scores, bs , ncrops)
+        
         scores = tf.squeeze(scores,0)
         scores_exp = np.repeat(np.array(scores), 16) ## ts * 16 = original video frame state
         
         tsteps = np.shape(scores)[0]
         frames = tsteps * 16
-        print(f'scores_exp {np.shape(scores_exp)}  , tsetps {tsteps} , frames {frames}')
+        if DEBUG: print(f'scores_exp {np.shape(scores_exp)}  , tsetps {tsteps} , frames {frames}')
         assert frames == np.shape(scores_exp)[0]
         
         scores_all.extend(scores_exp.tolist())
@@ -79,22 +80,24 @@ def test_multicrop(model , normal_tfdata , abnormal_tfdata ):
         data = tf.expand_dims(data , 0) ## (1, ncrops , ts , 1024)
         #print("data",np.shape(data)) 
         
-        data , bs , ncrops = reshape_in(data)
+        if ncrops : data , bs , ncrops = reshape_in(data)
         scores = model(data)
-        scores = reshape_out(scores, bs , ncrops)
+        if ncrops : scores = reshape_out(scores, bs , ncrops)
         
         scores = tf.squeeze(scores,0)
         scores_expand = np.repeat(np.array(scores), 16) ## ts * 16 = original video frame state
         
         tsteps = np.shape(scores)[0]
         frames = tsteps * 16
-        #print(f'scores_exp {np.shape(scores_expand)}  , tsetps {tsteps} , frames {frames}')
+        if DEBUG: print(f'scores_exp {np.shape(scores_expand)}  , tsetps {tsteps} , frames {frames}')
         assert frames == np.shape(scores_expand)[0]
         
         scores_all.extend(scores_expand.tolist())
         
         normal = np.zeros_like(scores_expand)
-        print(f'scores_expand == correpondant interval gt ?\n{np.allclose(gt_all[frame_cnt : frame_cnt + frames] , normal)}')
+        if DEBUG: 
+            print(len(gt_all[frame_cnt : frame_cnt + frames]))
+            print(f'scores_expand == correpondant interval gt ?\n{np.allclose(gt_all[frame_cnt : frame_cnt + frames] , normal)}')
         frame_cnt += frames
     
 
@@ -147,8 +150,9 @@ if __name__ == "__main__":
     from model import *
     from dataset import *
     
-    model1 = ModelMultiCrop(globo.NFEATURES)
+    model1 = ModelMLP(globo.NFEATURES)
     
-    test_normal_tfdata , test_abnormal_tfdata , niters = get_tfdataset(False)
+    test_normal_dataset , test_abnormal_dataset , niters = get_tfslices(False)
     
-    test(model1 , test_normal_tfdata , test_abnormal_tfdata )
+    rec_auc , pr_auc , ap = test(model1 , test_normal_dataset , test_abnormal_dataset , globo.NCROPS)
+    print('\nTEST rec_auc = {} , pr_auc = {} , ap = {}'.format(rec_auc,pr_auc,ap))

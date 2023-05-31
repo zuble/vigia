@@ -1,30 +1,48 @@
 import os , argparse
 os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
-BASE_UCFCRIME_DIR = "/raid/DATASETS/anomaly/UCF_Crimes"
 
-UCFCRIME_VPATHS = {
-    "train_normal" : BASE_UCFCRIME_DIR + "/videos/normal" ,
-    "train_abnormal" : BASE_UCFCRIME_DIR + "videos/abnormal" , 
-    "test" : BASE_UCFCRIME_DIR + "videos/test"
+UCFCRIME_ROOT = "/raid/DATASETS/anomaly/UCF_Crimes"
+UCFCRIME_FROOT = UCFCRIME_ROOT + '/features'
+
+
+## C3D features
+## 0000 : slides of 16 / no frame_step / no normalize / 4096 features / 30mins max 
+## 0001 : slides of 16 / no frame_step / no normalize / 4096 features / (generator)
+C3D_VERSION = '0001'
+UCFCRIME_C3D_FPATHS = {
+    "train_normal" :    UCFCRIME_FROOT+'/C3DSPORTS1M/'+C3D_VERSION+'/train_normal',
+    "train_abnormal":   UCFCRIME_FROOT+'/C3DSPORTS1M/'+C3D_VERSION+'/train_abnormal',
+    "test" :            UCFCRIME_FROOT+'/C3DSPORTS1M/'+C3D_VERSION+'/test'
+}
+UCFCRIME_C3D_LISTS = {
+    "train_normal" :    'list/c3d/'+C3D_VERSION+'/ucf_c3d_'+C3D_VERSION+'_train_normal.list',
+    "train_abnormal" :  'list/c3d/'+C3D_VERSION+'/ucf_c3d_'+C3D_VERSION+'_train_abnormal.list',
+    "test" :            'list/c3d/'+C3D_VERSION+'/ucf_c3d_'+C3D_VERSION+'_test.list', 
 }
 
-UCFCRIME_C3DRAW_FPATHS = {
-    "train_normal" :    BASE_UCFCRIME_DIR+"/c3d-sports1m_raw_features/normal",
-    "train_abnormal":   BASE_UCFCRIME_DIR+"/c3d-sports1m_raw_features/abnormal",
-    "test" :            BASE_UCFCRIME_DIR+"/c3d-sports1m_raw_features/test",
+
+## I3D features
+## 0000 : slides of 16 / no frame_step / no normalize / 1024 features (rgb_imagenet_and_kinetics)
+## 0001 : 
+I3D_VERSION = '0000'
+UCFCRIME_I3D_FPATHS = {
+    "train_normal" :    UCFCRIME_FROOT+'/I3D/'+I3D_VERSION+'/train_normal',
+    "train_abnormal":   UCFCRIME_FROOT+'/I3D/'+I3D_VERSION+'/train_abnormal',
+    "test" :            UCFCRIME_FROOT+'/I3D/'+I3D_VERSION+'/test'
 }
-UCFCRIME_C3DRAW_LISTS = {
-    "train_normal" :    "list/ucf_c3d_raw_train_normal.list",
-    "train_abnormal" :  "list/ucf_c3d_raw_train_abnormal.list",
-    "test" :            "list/ucf_c3d_raw_test.list", 
+UCFCRIME_I3D_LISTS = {
+    "train_normal" :    'list/i3d/'+I3D_VERSION+'/ucf_i3d_'+I3D_VERSION+'_train_normal.list',
+    "train_abnormal" :  'list/i3d/'+I3D_VERSION+'/ucf_i3d_'+I3D_VERSION+'_train_abnormal.list',
+    "test" :            'list/i3d/'+I3D_VERSION+'/ucf_i3d_'+I3D_VERSION+'_test.list', 
 }
+
 
 UCFCRIME_I3DDEEPMIL_FPATHS = {
-    "train_normal" :    BASE_UCFCRIME_DIR + '/features/I3DDEEPMIL/train_normal' , 
-    "train_abnormal" :  BASE_UCFCRIME_DIR + '/features/I3DDEEPMIL/train_abnormal' ,
-    "test" :            BASE_UCFCRIME_DIR + '/features/I3DDEEPMIL/test'
+    "train_normal" :    UCFCRIME_FROOT + '/I3DDEEPMIL/train_normal' , 
+    "train_abnormal" :  UCFCRIME_FROOT + '/I3DDEEPMIL/train_abnormal' ,
+    "test" :            UCFCRIME_FROOT + '/I3DDEEPMIL/test'
 }
 UCFCRIME_I3DDEEPMIL_LISTS = {
     "train_normal" :    "list/deepmil/ucf_i3d_train_normal.list",
@@ -32,10 +50,11 @@ UCFCRIME_I3DDEEPMIL_LISTS = {
     "test" :            "list/deepmil/ucf_i3d_test.list", 
 }
 
+
 UCFCRIME_I3DRTFM_FPATHS = {
-    "train_normal" :    BASE_UCFCRIME_DIR + '/features/I3DRTFM_10CROP/train_normal' , 
-    "train_abnormal" :  BASE_UCFCRIME_DIR + '/features/I3DRTFM_10CROP/train_abnormal' ,
-    "test" :            BASE_UCFCRIME_DIR + '/features/I3DRTFM_10CROP/test'
+    "train_normal" :    UCFCRIME_FROOT + '/I3DRTFM_10CROP/train_normal' , 
+    "train_abnormal" :  UCFCRIME_FROOT + '/I3DRTFM_10CROP/train_abnormal' ,
+    "test" :            UCFCRIME_FROOT + '/I3DRTFM_10CROP/test'
 }
 UCFCRIME_I3DRTFM_LISTS = {
     "train_normal" :    "list/rtfm/ucf_i3d_train_normal.list",
@@ -43,9 +62,21 @@ UCFCRIME_I3DRTFM_LISTS = {
     "test" :            "list/rtfm/ucf_i3d_test.list", 
 }
 
-## deepmil
-UCFCRIME_GT = 'list/gt-ucf.npy'
 
+FEATURE_LISTS ={
+    'i3ddeepmil' : UCFCRIME_I3DDEEPMIL_LISTS,
+    'i3drtfm' : UCFCRIME_I3DRTFM_LISTS,
+    'c3d' : UCFCRIME_C3D_LISTS
+}
+
+## deepmil
+UCFCRIME_GT = 'gt/gt-ucf.npy'
+
+## each video totalframes % 16 == 0
+UCFCRIME_GT16 ='gt/gt-ucf_16f.npy' ## [i]=(fn,gt)
+UCFCRIME_GT16_ALL = 'gt/gt-ucf_16f_all.npy' ## gt1,gt2..
+
+## train folders
 BASE_MODEL_PATH = '.model/'
 CKPT_PATH = BASE_MODEL_PATH + 'ckpt'
 
@@ -55,8 +86,9 @@ parser = argparse.ArgumentParser(description='WSAD')
 parser.add_argument('--dummy', default=0 )
 parser.add_argument('--debug', default=True )
 
-parser.add_argument('--features', default='i3ddeepmil', choices=['i3ddeepmil', 'i3drtfm'])
+parser.add_argument('--features', default='c3d', choices=['i3ddeepmil', 'i3drtfm' , 'c3d'])
 parser.add_argument('--lossfx', default='milbert', choices=['deepmil', 'milbert' , 'espana'])
+parser.add_argument('--classifier', default='MLP', choices=['MLP'])
 
 parser.add_argument('--epochs', type=int, default=100, help='maximum iteration to train (default: 100)')
 parser.add_argument('--batch_size', type=int, default=16, help='number of instances in a batch of data (default: 16)')
@@ -67,6 +99,7 @@ ARGS = parser.parse_args(args=[])
 
 
 if ARGS.features == 'i3ddeepmil':
+    VERSION = ''
     NCROPS = 10
     NSEGMENTS = 32 
     NFEATURES = 1024 
@@ -74,8 +107,17 @@ if ARGS.features == 'i3ddeepmil':
     LR = 0.0001 #0.00005
     
 elif ARGS.features == 'i3drtfm':
+    VERSION = ''
     NCROPS = 10
     NSEGMENTS = 32 
     NFEATURES = 2048 
     OPTIMA = 'Adagrad'
+    LR = 0.0001
+
+elif ARGS.features == 'c3d':
+    VERSION = C3D_VERSION
+    NCROPS = 0
+    NSEGMENTS = 32 
+    NFEATURES = 4096
+    OPTIMA = 'Adam'
     LR = 0.0001

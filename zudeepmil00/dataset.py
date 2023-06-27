@@ -1,5 +1,6 @@
 import globo , os
 import numpy as np , tensorflow as tf
+from sklearn.preprocessing import normalize
 from utils import *
 
 
@@ -7,7 +8,8 @@ class Dataset(tf.keras.utils.Sequence):
 
     def __init__(self, args , is_normal: bool, is_test: bool, debug: bool = False):
         self.args = args
-
+        print("\nARGS",args)
+        
         self.is_normal = is_normal
         self.is_test = is_test
         self.debug = debug
@@ -37,8 +39,8 @@ class Dataset(tf.keras.utils.Sequence):
     def __load_file(self, index):
         fpath = self.list[index]
         base_fn = os.path.splitext(os.path.basename(fpath))[0]
-        
 
+        ## load features from .npy
         if self.args.features == 'i3ddeepmil':
             '''
                 each .npy in list is the basename for the 10 crops video features
@@ -70,7 +72,6 @@ class Dataset(tf.keras.utils.Sequence):
                 
                 features.append(feature_crop10)
              
-                
         elif self.args.features == 'i3drtfm':
             '''
                 each .npy in list have all 10crop (t,ncrops,features)
@@ -83,35 +84,41 @@ class Dataset(tf.keras.utils.Sequence):
             
             if self.debug: print(f'\t{fpath} {np.shape(features)} {features.dtype}')
             
-            
-        elif self.args.features == 'c3d':
+        elif self.args.features == 'c3d' or 'i3d':
             fpath = fpath.strip('\n')
             features = np.load(fpath)
             
             if self.debug: print(f'\t{fpath} {np.shape(features)} {features.dtype}')
 
 
-        if self.segments32: #=train
+        if self.segments32: ## train
             
-            ## l2norm ncrops features
-            #features = self.l2norm(np.asarray(features))
+            if self.args.l2norm: ## raw
+                features = self.l2norm(np.asarray(features))
+                #features2 = normalize(features, axis=1)
+                #print("\tL2NORM same ?",np.allclose(features,features2))
             
-            if self.args.features == ('c3d' or 'i3d'):
+            if self.args.features == 'c3d' or 'i3d': ## no crops
                 features = segment_feat(np.asarray(features) )
-            else: ## interpolate all ncrops features at once
-                features = segment_feat_crop(np.asarray(features) ) ## (10 , 32 , 2048)
-           
-            ## l2norm ncrop divided features
-            #features = self.l2norm(features)
+            else:
+                features = segment_feat_crop(np.asarray(features) )
         
+            if self.args.l2norm == 2: ## segmt 
+                features = self.l2norm(features)
+        
+        
+        elif self.args.l2norm: ## test raw
+            features = self.l2norm(np.asarray(features))
+            
+
         print(f'Loading {index} {base_fn}  {np.shape(features)}')
         return features
 
 
-    def __getitem__(self, index):
+    def __getitem__(self, index): 
         return self.__load_file(index)
 
-    def __len__(self):
+    def __len__(self): 
         return len(self.list)
 
 
@@ -133,6 +140,10 @@ def get_tfslices(train = True):
         num_iterations = len(normal_dataset) + len(abnormal_dataset)
         print(f'num_iterations {num_iterations}')
 
+        ## maybe 
+        # normal_tf_dataset.cache().shuffle(1000).prefetch(buffer_size = AUTOTUNE)
+
+        
         return normal_tf_dataset , abnormal_tf_dataset , num_iterations
     
     else: ## test no need to construct generator
@@ -149,7 +160,7 @@ def get_tfslices(train = True):
 
 if __name__ == "__main__":
 
-    normal_tf_dataset , abnormal_tf_dataset , num_iterations = get_tfslices(False)
+    normal_tf_dataset , abnormal_tf_dataset , num_iterations = get_tfslices(True)
     #normal_tf_dataset , abnormal_tf_dataset , num_iterations = get_tfslices()
 
     for normal_in in normal_tf_dataset:

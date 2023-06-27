@@ -1,6 +1,6 @@
-import os , argparse
+import os , argparse , time , csv
 os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="2"
 
 
 UCFCRIME_ROOT = "/raid/DATASETS/anomaly/UCF_Crimes"
@@ -38,7 +38,7 @@ UCFCRIME_I3D_LISTS = {
     "test" :            'list/i3d/'+I3D_VERSION+'/ucf_i3d_'+I3D_VERSION+'_test.list', 
 }
 
-
+## https://github.com/Roc-Ng/DeepMIL/issues/2
 UCFCRIME_I3DDEEPMIL_FPATHS = {
     "train_normal" :    UCFCRIME_FROOT + '/I3DDEEPMIL/train_normal' , 
     "train_abnormal" :  UCFCRIME_FROOT + '/I3DDEEPMIL/train_abnormal' ,
@@ -50,7 +50,7 @@ UCFCRIME_I3DDEEPMIL_LISTS = {
     "test" :            "list/deepmil/ucf_i3d_test.list", 
 }
 
-
+## https://github.com/tianyu0207/RTFM
 UCFCRIME_I3DRTFM_FPATHS = {
     "train_normal" :    UCFCRIME_FROOT + '/I3DRTFM_10CROP/train_normal' , 
     "train_abnormal" :  UCFCRIME_FROOT + '/I3DRTFM_10CROP/train_abnormal' ,
@@ -66,6 +66,7 @@ UCFCRIME_I3DRTFM_LISTS = {
 FEATURE_LISTS ={
     'i3ddeepmil' : UCFCRIME_I3DDEEPMIL_LISTS,
     'i3drtfm' : UCFCRIME_I3DRTFM_LISTS,
+    'i3d' : UCFCRIME_I3D_LISTS,
     'c3d' : UCFCRIME_C3D_LISTS
 }
 
@@ -83,20 +84,23 @@ CKPT_PATH = BASE_MODEL_PATH + 'ckpt'
 
 ## option.py
 parser = argparse.ArgumentParser(description='WSAD')
-parser.add_argument('--dummy', default=0 )
-parser.add_argument('--debug', default=True )
+parser.add_argument('--dummy', type=int , default=0 , help='number of files in dataset, 0:full')
+parser.add_argument('--debug', type=bool, default=True )
 
-parser.add_argument('--features', default='c3d', choices=['i3ddeepmil', 'i3drtfm' , 'c3d'])
-parser.add_argument('--lossfx', default='milbert', choices=['deepmil', 'milbert' , 'espana'])
-parser.add_argument('--classifier', default='MLP', choices=['MLP'])
+parser.add_argument('--druna', type=bool, default=False , help='if False creates folders/save ckpts && final weights')
 
-parser.add_argument('--epochs', type=int, default=100, help='maximum iteration to train (default: 100)')
-parser.add_argument('--batch_size', type=int, default=16, help='number of instances in a batch of data (default: 16)')
+parser.add_argument('--features',   type=str , default='c3d',       choices=['i3ddeepmil','i3drtfm','i3d','c3d'])
+parser.add_argument('--l2norm',     type=int , default=1 ,          choices=[0,1,2] , help='0:none , 1:raw feats, 2:raw && segmnt feats')
+parser.add_argument('--lossfx',     type=str , default='milbert',   choices=['deepmil','milbert','espana'])
+parser.add_argument('--classifier', type=str , default='MLP',       choices=['MLP'])
 
-parser.add_argument('--gpus', default=1, type=int, choices=[0 , 1 , 2 , 3], help='gpus')
+parser.add_argument('--epochs',     type=int, default=100)
+parser.add_argument('--batch_size', type=int, default=16,    help='pairs of normal/abnormal features (if =16 , model in is (32,NSEGMENTS,NFEATURES))')
 
 ARGS = parser.parse_args(args=[])
 
+    
+#################################
 
 if ARGS.features == 'i3ddeepmil':
     VERSION = ''
@@ -113,7 +117,15 @@ elif ARGS.features == 'i3drtfm':
     NFEATURES = 2048 
     OPTIMA = 'Adagrad'
     LR = 0.0001
-
+    
+elif ARGS.features == 'i3d':
+    VERSION = I3D_VERSION
+    NCROPS = 0
+    NSEGMENTS = 32 
+    NFEATURES = 1024 
+    OPTIMA = 'Adagrad'
+    LR = 0.0001
+    
 elif ARGS.features == 'c3d':
     VERSION = C3D_VERSION
     NCROPS = 0
@@ -121,3 +133,28 @@ elif ARGS.features == 'c3d':
     NFEATURES = 4096
     OPTIMA = 'Adam'
     LR = 0.0001
+    
+
+MODEL_NAME = "{:.4f}_{}_{}-{}_{}_{}-{}".format(time.time(),ARGS.classifier,ARGS.features+VERSION,ARGS.l2norm,ARGS.lossfx,OPTIMA,LR);print(MODEL_NAME)
+BASE_MODEL_PATH = os.path.join('.model',MODEL_NAME)
+MODEL_PATH = BASE_MODEL_PATH+'/'+MODEL_NAME+'.h5'
+
+
+if not ARGS.druna:
+    if not os.path.exists(BASE_MODEL_PATH):
+        os.makedirs(BASE_MODEL_PATH);print("\nINIT MODEL FOLDER @",BASE_MODEL_PATH)
+    else: raise Exception(f"{BASE_MODEL_PATH} eristes")
+    
+    WEIGHTS_PATH = os.path.join(BASE_MODEL_PATH,'weights'); os.makedirs(WEIGHTS_PATH)
+    LOG_PATH = os.path.join(BASE_MODEL_PATH,'log'); os.makedirs(LOG_PATH)
+    
+    HIST_CSV = LOG_PATH + '/hist.csv'
+    with open(HIST_CSV, 'w', newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(['epoch', 'avg_loss', 'auc' , 'pr_auc' , 'ap' , 'fpr' , 'tpr' , 'th_targ'])
+
+def histlog(row):
+    if not ARGS.druna:
+        with open(HIST_CSV, 'a', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(row)

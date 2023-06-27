@@ -1,4 +1,4 @@
-import globo , os , datetime , time
+import globo , csv , os , datetime , time
 
 import numpy as np
 import tensorflow as tf
@@ -10,20 +10,10 @@ from loss import RankingLoss
 from train import *
 from test import test
 
-
     
 
 if __name__ == "__main__":
 
-    ## INIT MODEL FOLDER
-    MODEL_NAME = "{:.4f}_{}_{}_{}_{}-{}".format(time.time(),globo.ARGS.classifier,globo.ARGS.features+globo.VERSION,globo.ARGS.lossfx,globo.OPTIMA,globo.LR)
-    print(MODEL_NAME)
-    BASE_MODEL_PATH = os.path.join('.model',MODEL_NAME)
-    if not os.path.exists(BASE_MODEL_PATH):os.makedirs(BASE_MODEL_PATH);print("\nINIT MODEL FOLDER @",BASE_MODEL_PATH)
-    else: raise Exception(f"{BASE_MODEL_PATH} eristes")
-    WEIGHTS_PATH = os.path.join(BASE_MODEL_PATH,'weights'); os.makedirs(WEIGHTS_PATH)
-    LOG_PATH = os.path.join(BASE_MODEL_PATH,'log'); os.makedirs(LOG_PATH)
-    
 
     model = ModelMLP(globo.NFEATURES)
     
@@ -31,7 +21,6 @@ if __name__ == "__main__":
     elif globo.OPTIMA == 'Adagrad': optima = Adagrad( learning_rate=globo.LR ) 
     
     loss_obj = RankingLoss(lossfx = globo.ARGS.lossfx)
-    
     
     train_normal_tfdata , train_abnormal_tfdata , niters = get_tfslices()
     test_normal_dataset , test_abnormal_dataset , niters = get_tfslices(False)
@@ -46,14 +35,24 @@ if __name__ == "__main__":
         
         print(f'\n\nEPOCH {epoch + 1}/{ globo.ARGS.epochs} , Average Loss: {np.mean(losses):.4f}\n\n') 
 
-        if (epoch + 1) % 2 == 0 and not globo.ARGS.dummy:
-            model.save_weights(os.path.join(WEIGHTS_PATH, f'{MODEL_NAME}_EP-{epoch + 1}.h5'))   
-            rec_auc , pr_auc , ap = test(model, test_normal_dataset , test_abnormal_dataset)
-            print('\nTEST rec_auc = {} , pr_auc = {} , ap = {}'.format(rec_auc,pr_auc,ap),globo.NCROPS)
 
+        if (epoch + 1) % 2 == 0 and not globo.ARGS.dummy:
+            if not globo.ARGS.druna: 
+                model.save_weights(os.path.join(globo.WEIGHTS_PATH, f'{globo.MODEL_NAME}_EP-{epoch + 1}.h5'))   
+            
+            auc , pr_auc , ap , fpr , tpr , th_targ = test(model, test_normal_dataset , test_abnormal_dataset , globo.NCROPS)
+            print('\nTEST roc_auc = {} , pr_auc = {} , ap = {} , fpr = {} , tpr = {} , th_targ = {}'.format(auc,pr_auc,ap,fpr,tpr,th_targ))
+        else: auc , pr_auc , ap , fpr , tpr , th_targ = '', '', '' , '' , '' , ''
+        
+        
+        if not globo.ARGS.druna: 
+            globo.histlog([epoch + 1, np.mean(losses), auc , pr_auc , ap , fpr , tpr , th_targ])
+       
+            
     ## https://www.tensorflow.org/guide/keras/save_and_serialize
-    print("\n SAVING MODEL .h5 @",BASE_MODEL_PATH+'/'+MODEL_NAME)
-    model.save_weights(BASE_MODEL_PATH+'/'+MODEL_NAME+'.h5')
+    print("\n SAVING MODEL .h5 @",globo.MODEL_PATH)
+    if not globo.ARGS.druna: 
+        model.save_weights(globo.MODEL_PATH)
 
     '''
     from tensorflow.keras.models import load_model

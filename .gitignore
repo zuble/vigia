@@ -9,6 +9,7 @@
 */.pretrained
 */__pycache__
 
+*.tf
 *.h5
 *.out
 *.code-workspace

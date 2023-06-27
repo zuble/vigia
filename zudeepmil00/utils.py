@@ -1,5 +1,5 @@
 import globo
-import numpy as np
+import numpy as np , csv
 
 def segment_feat(feat, length = globo.NSEGMENTS):
     """
@@ -141,3 +141,4 @@ def test_interpolate():
     test_case3 = np.random.randn(42, 2048)
     output_case3 = transform_into_segments_sultani(test_case3, 32)
     assert output_case3.shape == (32, 2048)
+    

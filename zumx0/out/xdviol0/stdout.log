@@ -1,0 +1,494 @@
+[06/24 23:23:29][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence/training_copy
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:23:29][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:23:46][INFO] 0.py:   81: Pre-trained model is successfully loaded from the model zoo.
+[06/24 23:23:46][INFO] 0.py:   83: Successfully built model i3d_resnet50_v1_kinetics400
+[06/24 23:23:46][INFO] 0.py:   88: Load 0 video samples.
+[06/24 23:23:46][INFO] 0.py:  125: Total feature extraction time is 0.00 minutes
+[06/24 23:24:46][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence/training_copy
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:24:46][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:25:03][INFO] 0.py:   81: Pre-trained model is successfully loaded from the model zoo.
+[06/24 23:25:03][INFO] 0.py:   83: Successfully built model i3d_resnet50_v1_kinetics400
+[06/24 23:26:15][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence/training_copy
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:26:15][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:26:32][INFO] 0.py:   81: Pre-trained model is successfully loaded from the model zoo.
+[06/24 23:26:32][INFO] 0.py:   83: Successfully built model i3d_resnet50_v1_kinetics400
+[06/24 23:28:57][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence/training_copy
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:28:57][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:29:14][INFO] 0.py:   81: Pre-trained model is successfully loaded from the model zoo.
+[06/24 23:29:14][INFO] 0.py:   83: Successfully built model i3d_resnet50_v1_kinetics400
+[06/24 23:29:14][INFO] 0.py:   88: Load 0 video samples.
+[06/24 23:29:14][INFO] 0.py:  125: Total feature extraction time is 0.00 minutes
+[06/24 23:30:10][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:30:10][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:33:30][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:33:30][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:52:25][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:52:25][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:52:42][INFO] 0.py:   82: Pre-trained model is successfully loaded from the model zoo.
+[06/24 23:52:42][INFO] 0.py:   84: Successfully built model i3d_resnet50_v1_kinetics400
+[06/24 23:57:50][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+- 3
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/24 23:57:50][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/24 23:58:07][INFO] 0.py:   82: Pre-trained model is successfully loaded from the model zoo.
+[06/24 23:58:07][INFO] 0.py:   84: Successfully built model i3d_resnet50_v1_kinetics400
+[06/24 23:58:07][INFO] 0.py:   96: saving features in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/testing_copy
+[06/24 23:58:07][INFO] 0.py:  105: 0 /raid/DATASETS/anomaly/XD_Violence/testing_copy/A.Beautiful.Mind.2001__#00-25-20_00-29-20_label_A.mp4
+[06/24 23:58:08][INFO] vid.py:   47: yielding 180 segments from 5761 frames (5761)
+[06/25 00:04:54][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/25 00:04:54][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/25 00:05:04][INFO] 0.py:   82: Pre-trained model is successfully loaded from the model zoo.
+[06/25 00:05:04][INFO] 0.py:   84: Successfully built model i3d_resnet50_v1_kinetics400
+[06/25 00:05:04][INFO] 0.py:   96: saving features in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/testing_copy
+[06/25 00:05:04][INFO] 0.py:  105: 0 /raid/DATASETS/anomaly/XD_Violence/testing_copy/A.Beautiful.Mind.2001__#00-25-20_00-29-20_label_A.mp4
+[06/25 00:05:04][INFO] vid.py:   47: yielding 180 segments from 5761 frames (5761)
+[06/25 00:16:32][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/25 00:16:32][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/25 00:17:20][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/25 00:17:20][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/25 00:23:59][INFO] setup.py:   32: cfg:
+DATA:
+  DATA_AUG: v1
+  FAST_TEMPORAL_STRIDE: 2
+  NEW_HEIGHT: 256
+  NEW_LENGTH: 32
+  NEW_STEP: 1
+  NEW_WIDTH: 340
+  NUM_CROP: 1
+  NUM_SEGMENTS: 1
+  SLOWFAST: true
+  SLOW_TEMPORAL_STRIDE: 16
+  USE_DECORD: true
+DATA_DIR: /raid/DATASETS/anomaly/XD_Violence
+DATA_LIST: /raid/DATASETS/anomaly/XD_Violence/.lists/training_copy.list
+DEBUG: true
+EXPERIMENTDIR: /raid/DATASETS/.zuble/vigia/zumx0/out
+EXPERIMENTID: xdviol0
+EXPERIMENTPATH: /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0
+GPUID:
+- 2
+LOG_CFG_INFO: true
+LOG_INTERVAL: 10
+MODEL:
+  DTYPE: float32
+  HASHTAG: 568a722e
+  MODE: hybrid
+  NAME: i3d_resnet50_v1_kinetics400
+  NUM_CLASSES: 400
+  RESUME_PARAMS: ''
+  USE_PRETRAINED: true
+TRANSFORM:
+  INPUT_SIZE: 224
+  TEN_CROP: false
+  THREE_CROP: false
+
+[06/25 00:23:59][INFO] setup.py:   33: log file @ /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/stdout.log
+[06/25 00:24:08][INFO] 0.py:   84: Pre-trained model is successfully loaded from the model zoo.
+[06/25 00:24:08][INFO] 0.py:   86: Successfully built model i3d_resnet50_v1_kinetics400
+[06/25 00:24:08][INFO] 0.py:   98: saving features in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/testing_copy
+[06/25 00:24:08][INFO] 0.py:  107: 0 /raid/DATASETS/anomaly/XD_Violence/testing_copy/A.Beautiful.Mind.2001__#00-25-20_00-29-20_label_A.mp4
+[06/25 00:24:08][INFO] vid.py:   47: yielding 180 segments from 5761 frames (5761)
+[06/25 00:24:30][INFO] 0.py:  134: (180, 2048) saved in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/testing_copy/A.Beautiful.Mind.2001__#00-25-20_00-29-20_label_A.mp4.npy
+[06/25 00:24:30][INFO] 0.py:  107: 1 /raid/DATASETS/anomaly/XD_Violence/testing_copy/A.Beautiful.Mind.2001__#00-40-52_00-42-01_label_A.mp4
+[06/25 00:24:30][INFO] vid.py:   47: yielding 51 segments from 1657 frames (1657)
+[06/25 00:24:35][INFO] 0.py:  134: (51, 2048) saved in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/testing_copy/A.Beautiful.Mind.2001__#00-40-52_00-42-01_label_A.mp4.npy
+[06/25 00:24:35][INFO] 0.py:  140: Total feature extraction time is 0.44 minutes
+[06/25 00:24:35][INFO] 0.py:   98: saving features in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/training_copy
+[06/25 00:24:35][INFO] 0.py:  107: 0 /raid/DATASETS/anomaly/XD_Violence/training_copy/A.Beautiful.Mind.2001__#00-01-45_00-02-50_label_A.mp4
+[06/25 00:24:35][INFO] vid.py:   47: yielding 48 segments from 1561 frames (1561)
+[06/25 00:24:40][INFO] 0.py:  134: (48, 2048) saved in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/training_copy/A.Beautiful.Mind.2001__#00-01-45_00-02-50_label_A.mp4.npy
+[06/25 00:24:40][INFO] 0.py:  107: 1 /raid/DATASETS/anomaly/XD_Violence/training_copy/A.Beautiful.Mind.2001__#00-03-00_00-04-05_label_A.mp4
+[06/25 00:24:40][INFO] vid.py:   47: yielding 48 segments from 1561 frames (1561)
+[06/25 00:24:44][INFO] 0.py:  134: (48, 2048) saved in2 /raid/DATASETS/.zuble/vigia/zumx0/out/xdviol0/training_copy/A.Beautiful.Mind.2001__#00-03-00_00-04-05_label_A.mp4.npy
+[06/25 00:24:44][INFO] 0.py:  140: Total feature extraction time is 0.16 minutes
